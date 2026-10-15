@@ -25,14 +25,14 @@ trap cleanup EXIT
 
 echo "== Passwords (typed here, never stored)"
 if docker ps --format '{{.Names}}' | grep -qx keycloak; then
-  read -rs "KC_ADMIN_PW?Keycloak admin password (existing container): "; echo
+  read -rsp "Keycloak admin password (existing container): " KC_ADMIN_PW; echo
 else
-  read -rs "KC_ADMIN_PW?New Keycloak admin password: "; echo
+  read -rsp "New Keycloak admin password: " KC_ADMIN_PW; echo
 fi
-read -rs "DEMO_SALES_USER_PW?demo_sales_user password (new or existing): "; echo
-read -rs "DEMO_FINANCE_USER_PW?demo_finance_user password (new or existing): "; echo
-read -rs "DEMO_SALES_PW?demo_sales DATABASE password: "; echo
-read -rs "DEMO_FINANCE_PW?demo_finance DATABASE password: "; echo
+read -rsp "demo_sales_user password (new or existing): " DEMO_SALES_USER_PW; echo
+read -rsp "demo_finance_user password (new or existing): " DEMO_FINANCE_USER_PW; echo
+read -rsp "demo_sales DATABASE password: " DEMO_SALES_PW; echo
+read -rsp "demo_finance DATABASE password: " DEMO_FINANCE_PW; echo
 export KC_ADMIN_PW DEMO_SALES_USER_PW DEMO_FINANCE_USER_PW
 export DEMO_SALES_URI="mongodb://demo_sales:${DEMO_SALES_PW}@127.0.0.1:27017/rolefence_demo?authSource=rolefence_demo"
 export DEMO_FINANCE_URI="mongodb://demo_finance:${DEMO_FINANCE_PW}@127.0.0.1:27017/rolefence_demo?authSource=rolefence_demo"
