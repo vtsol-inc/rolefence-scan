@@ -111,7 +111,7 @@ def test_round_the_gateway(fake_server):
     assert r2.findings == [] and r2.passed == ["round-the-gateway"]
     r3 = Report("gw")
     mcp_checks.check_round_the_gateway(r3, "http://127.0.0.1:9/mcp")
-    assert r3.passed == ["round-the-gateway"]      # unreachable counts as closed
+    assert r3.passed == [] and r3.skipped and r3.skipped[0].startswith("round-the-gateway:")  # unreachable: could not check
 
 
 def test_token_refused_when_server_answers_401_to_a_token(fake_server):

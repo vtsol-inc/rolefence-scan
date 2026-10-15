@@ -47,7 +47,7 @@ fi
 demo/gateway/setup_keycloak.sh
 
 echo "== Servers"
-toolbox --config demo/toolbox/governed_auth.yaml --port 5012 > reports/toolbox-5012.log 2>&1 & pids+=($!)
+toolbox --config demo/toolbox/governed_auth.yaml --port 5012 --toolbox-url http://127.0.0.1:5012 > reports/toolbox-5012.log 2>&1 & pids+=($!)
 toolbox --config demo/toolbox/governed.yaml      --port 5011 > reports/toolbox-5011.log 2>&1 & pids+=($!)
 "$AGENTGATEWAY" -f demo/gateway/gateway_good.yaml > reports/gateway-3011.log 2>&1 & pids+=($!)
 "$AGENTGATEWAY" -f demo/gateway/gateway_weak.yaml > reports/gateway-3012.log 2>&1 & pids+=($!)

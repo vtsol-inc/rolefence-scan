@@ -5,7 +5,7 @@
 # every caller (it refuses at call time), so the gateway (demo/gateway/) is still wanted.
 #
 #   export DEMO_SALES_URI=... DEMO_FINANCE_URI=...   # as for governed.yaml
-#   toolbox --config demo/toolbox/governed_auth.yaml --port 5012
+#   toolbox --config demo/toolbox/governed_auth.yaml --port 5012 --toolbox-url http://127.0.0.1:5012
 authServices:
   demo_keycloak:
     kind: generic

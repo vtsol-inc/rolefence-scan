@@ -242,7 +242,7 @@ export KC_ADMIN_PW DEMO_SALES_USER_PW DEMO_FINANCE_USER_PW   # typed with read -
 demo/gateway/setup_keycloak.sh
 
 # 2. Toolbox with its own login (needs DEMO_SALES_URI / DEMO_FINANCE_URI as for governed.yaml)
-toolbox --config demo/toolbox/governed_auth.yaml --port 5012
+toolbox --config demo/toolbox/governed_auth.yaml --port 5012 --toolbox-url http://127.0.0.1:5012
 
 # 3. The two gateways (binary from https://github.com/agentgateway/agentgateway/releases)
 agentgateway -f demo/gateway/gateway_good.yaml &

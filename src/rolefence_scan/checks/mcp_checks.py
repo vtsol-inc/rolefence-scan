@@ -56,7 +56,7 @@ def check_round_the_gateway(report: Report, backend_url: str) -> None:
             report.ok("round-the-gateway")
             return
         if init.status == 0:
-            report.ok("round-the-gateway")   # not reachable from here at all
+            report.skip("round-the-gateway", f"{backend_url} did not answer from this machine (not running, or not reachable from here)")
             return
         tools = c.list_tools()
         names = tool_names(tools)
@@ -96,7 +96,10 @@ def check_with_token(report: Report, url: str, token: str, role_label: str = "th
             ))
             return []
         if not init.ok:
-            report.skip("tool-list-filtered", f"could not initialize with token (HTTP {init.status})")
+            why = {0: "nothing answered at that address",
+                   500: "the server answered 500; if this is a gateway, the server behind it is probably down",
+                   }.get(init.status, f"HTTP {init.status}")
+            report.skip("tool-list-filtered", f"could not initialize with token ({why})")
             return []
         tools = c.list_tools()
         names = tool_names(tools)
