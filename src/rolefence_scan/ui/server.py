@@ -5,6 +5,10 @@ Safety:
 - every API call must carry a per-start random token that only the served page knows, so a
   web page open in another tab cannot drive the scanner
 - tokens and connection strings live in memory for one job and are dropped when it finishes
+- local-program servers are offered by reference only: the page sees the app, the server's name,
+  the program's base name and the settings file's path, never the command's arguments or its
+  settings' values; a program is started only when the page sends stdio_start (the admin ticked
+  the confirmation), and only a server the detector itself found
 - responses are marked no-store
 """
 
@@ -24,6 +28,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from ..mcpclient import McpClient, tool_names
 from ..scanner import scan
+from ..stdio import StdioServer, load_stdio_servers
 
 HOST = "127.0.0.1"
 MAX_BODY = 2_000_000
@@ -49,6 +54,28 @@ class State:
         # values found in running servers' environments; the page only ever sees the ref id
         self.secrets: dict[str, str] = {}
         self.config_paths: set[str] = set()
+        # local-program servers by ref: (settings file, app, position in that file). Re-read from
+        # the file when used, so their settings' values are not held here.
+        self.stdio: dict[str, tuple[str, str, int]] = {}
+        # database logins inside a local-program server's settings, by ref: (stdio ref, setting name)
+        self.stdio_vars: dict[str, tuple[str, str]] = {}
+
+    def stdio_server(self, ref: str) -> StdioServer | None:
+        where = self.stdio.get(ref)
+        if not where:
+            return None
+        path, app, i = where
+        servers = load_stdio_servers(path, app=app)
+        return servers[i] if i < len(servers) else None
+
+    def secret(self, ref: str) -> str | None:
+        if ref in self.secrets:
+            return self.secrets[ref]
+        if ref in self.stdio_vars:
+            sref, key = self.stdio_vars[ref]
+            srv = self.stdio_server(sref)
+            return srv.env.get(key) if srv else None
+        return None
 
 
 def _detect(state: State) -> dict:
@@ -68,7 +95,22 @@ def _detect(state: State) -> dict:
                     state.secrets[ref] = env[name]
                 entry["vars"].append({"name": name, "ref": ref})
         servers.append(entry)
-    return {"servers": servers, "apps": detect.find_app_servers()}
+    stdio = []
+    positions: dict[str, int] = {}
+    for srv in detect.find_app_stdio_servers():
+        key = f"{srv.app}\0{srv.settings_path}"
+        i = positions.get(key, 0)
+        positions[key] = i + 1
+        ref = uuid.uuid4().hex
+        state.stdio[ref] = (srv.settings_path, srv.app, i)
+        entry = {**srv.public(), "ref": ref, "vars": []}
+        for name, value in srv.env.items():
+            if value.startswith(("mongodb://", "mongodb+srv://")):
+                vref = uuid.uuid4().hex
+                state.stdio_vars[vref] = (ref, name)
+                entry["vars"].append({"name": name, "ref": vref})
+        stdio.append(entry)
+    return {"servers": servers, "apps": detect.find_app_servers(), "stdio": stdio}
 
 
 def _run_job(job: Job, params: dict) -> None:
@@ -86,6 +128,8 @@ def _run_job(job: Job, params: dict) -> None:
             config_path=config_path,
             role_label=params.get("role") or "the token",
             on_event=job.event,
+            stdio_servers=[params["stdio"]] if params.get("stdio") else None,
+            stdio_start=params["stdio"] if params.get("stdio") and params.get("stdio_start") else None,
         )
     except Exception as e:  # shown to the admin, never swallowed
         job.error = f"{e.__class__.__name__}: {e}"
@@ -95,7 +139,7 @@ def _run_job(job: Job, params: dict) -> None:
                 os.unlink(config_path)
             except OSError:
                 pass
-        for k in ("token", "db_uri", "config_text"):
+        for k in ("token", "db_uri", "config_text", "stdio"):
             params.pop(k, None)
         job.done = True
 
@@ -271,14 +315,21 @@ def make_handler(state: State):
                     self._json(HTTPStatus.OK, {"error": f"could not read the file: {e.strerror}"})
                 return
             if u.path == "/api/testdb":
-                uri = state.secrets.get(str(body.get("db_ref", ""))) or str(body.get("db_uri", ""))
+                uri = state.secret(str(body.get("db_ref", ""))) or str(body.get("db_uri", ""))
                 self._json(HTTPStatus.OK, _test_db(uri))
                 return
             if u.path == "/api/scan":
                 params = {k: body.get(k) for k in ("mcp_url", "token", "role", "backend_url", "db_uri", "config_text")}
                 if body.get("db_ref"):
-                    params["db_uri"] = state.secrets.get(str(body["db_ref"]))
-                if not any(params.get(k) for k in ("mcp_url", "backend_url", "db_uri", "config_text")):
+                    params["db_uri"] = state.secret(str(body["db_ref"]))
+                if body.get("stdio_ref"):
+                    srv = state.stdio_server(str(body["stdio_ref"]))   # only servers the detector found
+                    if not srv:
+                        self._json(HTTPStatus.BAD_REQUEST, {"error": "that local program is no longer in its settings file"})
+                        return
+                    params["stdio"] = srv
+                    params["stdio_start"] = body.get("stdio_start") is True
+                if not any(params.get(k) for k in ("mcp_url", "backend_url", "db_uri", "config_text", "stdio")):
                     # (db_ref was already resolved into db_uri above)
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "nothing to scan"})
                     return

@@ -17,6 +17,7 @@ except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server
 
 from .scanner import scan
+from .stdio import find, load_stdio_servers
 
 app = _Server("rolefence-scan", instructions=(
     "Read-only exposure scanner for MCP servers in front of databases. Call `scan_mcp` with the "
@@ -51,6 +52,36 @@ def scan_mcp(mcp_url: str = "", token_env: str = "", role: str = "the token", ba
 
 
 @app.tool()
+def scan_local_program(settings_file: str, server: str = "", list_tools: bool = False) -> str:
+    """Check the local-program ("stdio") MCP servers in an AI app's settings file: passwords or keys
+    written there in plain text, and (with list_tools) what tools the program offers.
+
+    settings_file: e.g. ~/Library/Application Support/Claude/claude_desktop_config.json, .mcp.json,
+                   ~/.claude.json, ~/.cursor/mcp.json, ~/.codex/config.toml
+    server:        check only the server with this name (required for list_tools)
+    list_tools:    start that server once the way the AI app does, ask for its tool list, and stop
+                   it. No tool is run. Ask the person before setting this.
+
+    The report names settings, never their values.
+    """
+    path = os.path.expanduser(settings_file)
+    if not os.path.isfile(path):
+        return f"Settings file not found: {settings_file}"
+    servers = load_stdio_servers(path)
+    if not servers:
+        return f"No local-program servers in {settings_file}."
+    if server:
+        chosen = find(servers, server)
+        if not chosen:
+            return f"No local-program server named {server}. Found: " + ", ".join(s.name for s in servers)
+        servers = [chosen]
+    elif list_tools:
+        return "list_tools needs a server name. Found: " + ", ".join(s.name for s in servers)
+    report = scan(stdio_servers=servers, stdio_start=servers[0] if list_tools else None)
+    return report.to_text()
+
+
+@app.tool()
 def list_checks() -> str:
     """List the checks rolefence-scan runs and what each needs."""
     return (
@@ -60,7 +91,10 @@ def list_checks() -> str:
         "As the database user (needs db_env): writes allowed; server-side JavaScript; cross-collection "
         "$lookup; host name and query echoed in replies.\n"
         "From the config file (needs config_path): write tools; free-form queries; aggregate not "
-        "read-only; no row cap; find without projection."
+        "read-only; no row cap; find without projection.\n"
+        "Local-program servers (scan_local_program, from an AI app's settings file): passwords and keys "
+        "written there in plain text. With list_tools (starts the program once, runs no tool): write "
+        "tools; every tool open to whoever uses the computer."
     )
 
 

@@ -5,16 +5,37 @@ from __future__ import annotations
 
 from typing import Callable
 
-from .checks import config_checks, db_checks, mcp_checks
+from .checks import config_checks, db_checks, mcp_checks, stdio_checks
 from .report import Report
+from .stdio import StdioServer
 
 
 def scan(mcp_url: str | None = None, token: str | None = None, backend_url: str | None = None,
          db_uri: str | None = None, config_path: str | None = None, role_label: str = "the token",
-         on_event: Callable[[str, dict], None] | None = None) -> Report:
-    target = mcp_url or backend_url or (config_path and f"config {config_path}") or "database"
+         on_event: Callable[[str, dict], None] | None = None,
+         stdio_servers: list[StdioServer] | None = None, stdio_start: StdioServer | None = None,
+         stdio_timeout: float | None = None) -> Report:
+    """stdio_servers: local-program servers whose settings are checked for plain-text secrets
+    (nothing is started). stdio_start: one local-program server to start, ask for its tool list,
+    and stop. Only names, counts and the settings file's path reach the report."""
+    stdio_target = None
+    if stdio_start:
+        stdio_target = f'local program "{stdio_start.name}" ({stdio_start.app})'
+    elif stdio_servers:
+        paths = sorted({s.settings_path for s in stdio_servers})
+        stdio_target = f"local programs in {', '.join(paths)}"
+    target = (mcp_url or backend_url or stdio_target or (config_path and f"config {config_path}")
+              or "database")
     report = Report(target=target, on_event=on_event)
     hinted: list[str] = []
+
+    if stdio_servers or stdio_start:
+        if stdio_servers:
+            stdio_checks.check_plaintext_secrets(report, stdio_servers)
+        if stdio_start:
+            stdio_checks.check_stdio_tools(report, stdio_start, timeout=stdio_timeout)
+        if not (mcp_url or backend_url):
+            stdio_checks.mark_outside_checks_not_applicable(report)
 
     if config_path:
         config_checks.run_config_checks(report, config_path)

@@ -91,7 +91,7 @@
   <!-- Step 1: address -->
   <section class="card" id="s1">
     <h2>1. Where is your AI's server?</h2>
-    <p class="hint">The address your AI assistant is set up with. It usually ends in <code>/mcp</code>. If a gateway sits in front, give the gateway's address here.</p>
+    <p class="hint">The address your AI assistant is set up with. It usually ends in <code>/mcp</code>. If a gateway sits in front, give the gateway's address here. Servers your AI app starts as a program on this computer have no address: pick them from "Found on this computer".</p>
     <details class="hint"><summary>Where do I find it?</summary>
       <ul>
         <li><strong>Claude Code:</strong> the <code>.mcp.json</code> file in the project folder, or <code>~/.claude.json</code>: look for <code>"url"</code>.</li>
@@ -187,6 +187,11 @@
     <h2>5. Ready to scan</h2>
     <p class="hint">This is what the scanner will check. Nothing is changed on your server or in your database.</p>
     <ul class="live" id="plan"></ul>
+    <div id="stdio_confirm" class="found hidden">
+      <div id="stdio_confirm_text"></div>
+      <label style="font-weight:600;margin-top:8px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="stdio_ok" style="width:auto"> Yes, start it to list its tools</label>
+      <div class="small">Leave this unticked to check only the settings file. Nothing is started then.</div>
+    </div>
     <div class="row"><button id="b5">Back</button><span class="spacer"></span><button class="primary" id="run">Run the scan</button></div>
   </section>
 
@@ -243,23 +248,26 @@
   // what the wizard found on this machine
   let chosen = null;        // the detected server the admin picked (address, config_path, vars)
   let dbRef = null;         // ref id of a login taken from a running server's environment
+  let stdioSel = null;      // a local-program server the admin picked (no address; started only after the tick)
   async function loadDetected() {
     let d; try { d = await api("/api/detect"); } catch (e) { return; }
     const items = [];
     (d.servers || []).forEach((s, i) => items.push({ s, text: `<strong>${esc(s.label)}</strong> · <code>${esc(s.address)}</code>` + (s.config_path ? ` · config file found` : "") }));
     (d.apps || []).forEach(a => items.push({ s: a, text: `${esc(a.label)} · <code>${esc(a.address)}</code>` }));
+    (d.stdio || []).forEach(a => items.push({ s: a, text: `${esc(a.app)}: <strong>${esc(a.name)}</strong> · runs as a local program <span class="small">(<code>${esc(a.program)}</code>)</span>` }));
     if (!items.length) return;
     $("found_list").innerHTML = items.map((it, i) => `<div class="item"><span>${it.text}</span><button data-i="${i}">Use this</button></div>`).join("");
-    $("found_list").querySelectorAll("button").forEach(b => b.onclick = () => useDetected(items[+b.dataset.i].s));
+    $("found_list").querySelectorAll("button").forEach(b => b.onclick = () => { const s = items[+b.dataset.i].s; s.kind === "stdio" ? useStdio(s) : useDetected(s); });
     $("found").classList.remove("hidden");
   }
-  function useDetected(s) {
-    chosen = s; dbRef = null;
-    $("mcp_url").value = s.address || "";
-    if (s.backend) $("backend_url").value = s.backend;
-    note($("test_note"), "plain", "Filled in. Click Test connection, then Next.");
-    // step 3: a login the server was started with
-    const v = (s.vars || []);
+  function useStdio(s) {
+    chosen = s; stdioSel = s; dbRef = null;
+    $("mcp_url").value = ""; $("backend_url").value = ""; $("stdio_ok").checked = false;
+    note($("test_note"), "ok", `Selected ${s.app}: ${s.name}, a local program started from ${s.settings_path}. It is not started until you confirm on the last step. Click Next.`);
+    showVars(s.vars || []);
+    $("cfg_found").classList.add("hidden");
+  }
+  function showVars(v) {
     const withRef = v.find(x => x.ref);
     if (withRef) {
       $("db_found").innerHTML = `<div class="item"><span>This server was started with its database login in the variable <code>${esc(withRef.name)}</code>. The wizard can use it without showing it.</span><button id="use_ref">Use that login</button></div>`;
@@ -269,6 +277,14 @@
       $("db_found").innerHTML = `<div class="item"><span>This server reads its database login from the variable <code>${esc(v.map(x => x.name).join(", "))}</code>, but the wizard could not read its value. Ask whoever started the server, or type the login below.</span></div>`;
       $("db_found").classList.remove("hidden");
     } else { $("db_found").classList.add("hidden"); }
+  }
+  function useDetected(s) {
+    chosen = s; stdioSel = null; dbRef = null;
+    $("mcp_url").value = s.address || "";
+    if (s.backend) $("backend_url").value = s.backend;
+    note($("test_note"), "plain", "Filled in. Click Test connection, then Next.");
+    // step 3: a login the server was started with
+    showVars(s.vars || []);
     // step 4: the config file
     if (s.config_path) {
       $("cfg_found").innerHTML = `<div class="item"><span>Config file found: <code>${esc(s.config_path)}</code></span><button id="use_cfg">Use this file</button></div>`;
@@ -280,12 +296,14 @@
       };
     } else { $("cfg_found").classList.add("hidden"); }
   }
+  $("mcp_url").addEventListener("input", () => { if (stdioSel) { stdioSel = null; chosen = null; $("test_note").innerHTML = ""; } });
   ["db_host", "db_name", "db_user", "db_pass", "db_uri"].forEach(id => $(id).addEventListener("input", () => { dbRef = null; }));
   loadDetected();
 
   // step 1
   $("btn_test").onclick = async () => {
     const url = $("mcp_url").value.trim();
+    if (!url && stdioSel) { note($("test_note"), "plain", `${stdioSel.name} is a local program, not an address. It is started only during the scan, after you confirm.`); return; }
     if (!url) { note($("test_note"), "bad", "Type the server address first."); return; }
     note($("test_note"), "plain", "Testing…");
     try {
@@ -293,16 +311,19 @@
       note($("test_note"), r.ok ? "ok" : "bad", r.message);
     } catch (e) { note($("test_note"), "bad", "Could not reach the wizard's own server. Is `rolefence-scan ui` still running?"); }
   };
-  $("n1").onclick = () => show(1);
+  // a local program has no token, gateway or Toolbox config: steps 2 and 4 are skipped
+  $("n1").onclick = () => show(stdioSel ? 2 : 1);
   $("b2").onclick = () => show(0); $("n2").onclick = () => show(2);
-  $("b3").onclick = () => show(1); $("n3").onclick = () => show(3);
+  $("b3").onclick = () => show(stdioSel ? 0 : 1);
+  $("n3").onclick = () => { if (stdioSel) { buildPlan(); show(4); } else show(3); };
   $("b4").onclick = () => show(2);
   $("config_file").onchange = (e) => {
     const f = e.target.files[0]; if (!f) return;
     const rd = new FileReader(); rd.onload = () => { $("config_text").value = rd.result; }; rd.readAsText(f);
   };
   $("n4").onclick = () => { buildPlan(); show(4); };
-  $("b5").onclick = () => show(3);
+  $("b5").onclick = () => show(stdioSel ? 2 : 3);
+  $("stdio_ok").onchange = () => buildPlan();
 
   function dbUri() {
     const pasted = $("db_uri").value.trim();
@@ -326,6 +347,10 @@
     } catch (e) { note($("db_note"), "bad", "Could not reach the wizard's own server."); }
   };
   function params() {
+    if (stdioSel) return {
+      stdio_ref: stdioSel.ref, stdio_start: $("stdio_ok").checked,
+      db_uri: dbRef ? "" : dbUri(), db_ref: dbRef || "",
+    };
     return {
       mcp_url: $("mcp_url").value.trim(), token: $("token").value, role: $("role").value.trim() || "the token",
       backend_url: $("backend_url").value.trim(), db_uri: dbRef ? "" : dbUri(), db_ref: dbRef || "",
@@ -334,6 +359,13 @@
   }
   function buildPlan() {
     const p = params(); const items = [];
+    $("stdio_confirm").classList.toggle("hidden", !stdioSel);
+    if (stdioSel) {
+      $("stdio_confirm_text").textContent = `This will start ${stdioSel.name} the way your AI app does, ask for its tool list, and stop it. No tool is run.`;
+      items.push(`Is a database password or key written in plain text in ${stdioSel.settings_path}?`);
+      if (p.stdio_start) items.push("Does it offer tools that change data?", "Is every tool open to whoever uses this computer?");
+      items.push("Network checks (login, gateway, open ports) do not apply to a local program.");
+    }
     if (p.mcp_url) items.push("Does the server list tools without a login?", "Does the bare /mcp address serve every tool?",
       "Is the server open to the whole network, not just this machine?", "Are clients told which scopes to ask for?");
     if (p.mcp_url && p.token) items.push(`Is the ${p.role} token accepted?`, `Is the ${p.role} role shown tools it may not call?`);
@@ -344,7 +376,7 @@
       "Are aggregate tools read-only, with a row cap?", "Do find tools return whole records?");
     if (!items.length) items.push("Nothing to check yet: go back and give at least the server address.");
     $("plan").innerHTML = items.map(t => `<li><span class="dot info"></span><span>${esc(t)}</span></li>`).join("");
-    $("run").disabled = !(p.mcp_url || p.backend_url || p.db_uri || p.db_ref || p.config_text);
+    $("run").disabled = !(p.mcp_url || p.backend_url || p.db_uri || p.db_ref || p.config_text || p.stdio_ref);
   }
 
   // run
@@ -356,6 +388,8 @@
     "leaks-in-errors": "Leaks in replies", "write-tools": "Write tools", "free-form-queries": "Free-form queries",
     "aggregate-not-readonly": "Aggregate read-only", "no-row-cap": "Row cap", "whole-documents": "Whole documents",
     "database checks": "Database checks", "config checks": "Config checks",
+    "plaintext-secrets": "Passwords or keys in plain text", "stdio-tool-list": "Listing the program's tools",
+    "stdio-write-tools": "Tools that change data", "local-tools-open": "Tools open to anyone on this computer",
   };
   $("run").onclick = async () => {
     const p = params();
@@ -377,6 +411,7 @@
     const li = document.createElement("li");
     if (ev.kind === "finding") li.innerHTML = `<span class="dot ${esc(ev.severity)}"></span><span><strong>${esc(ev.title)}</strong> <span class="small">(${esc(ev.severity)})</span></span>`;
     else if (ev.kind === "ok") li.innerHTML = `<span class="dot ok"></span><span>${esc(LABELS[ev.check] || ev.check)}: fine</span>`;
+    else if (ev.kind === "na") li.innerHTML = `<span class="dot skip"></span><span>${esc(LABELS[ev.check] || ev.check)}: ${esc(ev.reason)}</span>`;
     else li.innerHTML = `<span class="dot skip"></span><span>${esc(LABELS[ev.check] || ev.check)}: could not run (${esc(ev.reason)})</span>`;
     $("live").appendChild(li);
   }
@@ -396,8 +431,9 @@
             ${Object.keys(x.evidence || {}).length ? `<dt>Details</dt><dd><code>${esc(JSON.stringify(x.evidence))}</code></dd>` : ""}
         </dl></div>`).join("");
     $("passed_card").innerHTML = (full.passed.length ? `<p><strong>Checks that passed:</strong> ${esc(full.passed.map(c => LABELS[c] || c).join(", "))}</p>` : "")
-      + (full.skipped.length ? `<p><strong>Could not run:</strong></p><ul>${full.skipped.map(s => `<li>${esc(s)}</li>`).join("")}</ul>` : "");
-    $("passed_card").classList.toggle("hidden", !full.passed.length && !full.skipped.length);
+      + (full.skipped.length ? `<p><strong>Could not run:</strong></p><ul>${full.skipped.map(s => `<li>${esc(s)}</li>`).join("")}</ul>` : "")
+      + ((full.not_applicable || []).length ? `<p><strong>Do not apply here:</strong></p><ul>${full.not_applicable.map(s => `<li>${esc(s)}</li>`).join("")}</ul>` : "");
+    $("passed_card").classList.toggle("hidden", !full.passed.length && !full.skipped.length && !(full.not_applicable || []).length);
     $("dl_html").onclick = (e) => { e.preventDefault(); download(`/api/report.html?job=${job}`, "rolefence-scan-report.html"); };
     $("dl_json").onclick = (e) => { e.preventDefault(); download(`/api/report.json?job=${job}`, "rolefence-scan-report.json"); };
     $("s6").classList.add("hidden"); $("s7").classList.remove("hidden"); window.scrollTo({ top: 0 });

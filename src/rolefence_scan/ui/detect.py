@@ -4,6 +4,8 @@
 - the connection-string variables those processes were started with (names only are shown;
   the values stay inside the wizard's memory and are used only if the admin picks them)
 - MCP server addresses in the local AI apps' settings (Claude Code, Claude Desktop, Cursor, Codex)
+- local-program MCP servers in those same settings (`command` + `args` + `env`); only the app,
+  the server's name, the program's base name and the settings file's path are shown
 
 Read-only; nothing is changed. Works on macOS and Linux; on other systems it finds nothing.
 """
@@ -19,6 +21,8 @@ import sys
 from pathlib import Path
 
 import yaml
+
+from ..stdio import StdioServer, load_stdio_servers
 
 ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
@@ -210,4 +214,12 @@ def find_app_servers() -> list[dict]:
             seen.add(url)
             found.append({"kind": "app", "app": app, "name": name, "address": url,
                           "label": f"{app}: {name or url}"})
+    return found
+
+
+def find_app_stdio_servers() -> list[StdioServer]:
+    """Local-program servers in the AI apps' settings. The caller must show only `.public()`."""
+    found: list[StdioServer] = []
+    for app, path in _app_files():
+        found.extend(load_stdio_servers(path, app=app))
     return found

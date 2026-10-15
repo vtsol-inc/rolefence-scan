@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Local-program ("stdio") MCP servers: the ones an AI app starts from its settings file
+  (`command` + `args` + `env`) are now found in Claude Code, Claude Desktop, Cursor and Codex
+  settings and shown in the wizard as "runs as a local program".
+- New check from the settings file only (nothing started): a database password (high) or a
+  token or API key (medium) written there in plain text. Names the setting, never its value,
+  and says whether the database is on this computer or another one.
+- New run mode that starts a local program once, asks for its tool list, and stops it (never
+  `tools/call`): checks for tools that change data and reports that every tool is open to
+  whoever uses the computer. CLI `--stdio-from FILE [--server NAME]`, `--stdio "COMMAND"`,
+  `--stdio-timeout`; wizard (asks before starting anything); `serve` tool `scan_local_program`.
+- Reports list checks that "do not apply here" (the network checks, for a local program)
+  separately from checks that could not run; JSON has a new `not_applicable` list.
+- `GAPS.md` row 30: the database login in plain text in an AI app's settings file.
+
 ## 0.1.1 (15 Oct 2026)
 
 - `rolefence-scan ui`: a step-by-step page in your browser (local only). Address with a

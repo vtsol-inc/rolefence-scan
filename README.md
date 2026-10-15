@@ -64,9 +64,10 @@ report. Tokens and connection strings are kept in memory for that one run and ne
 
 Run it on the machine where the MCP server runs and it finds things itself: running Toolbox
 and agentgateway processes (address, port, config file), the database-login variable the
-server was started with (used without ever being shown), and the MCP addresses in Claude Code,
-Claude Desktop, Cursor and Codex settings. Each shows as "Found on this computer" with a
-"Use this" button.
+server was started with (used without ever being shown), and the MCP servers in Claude Code,
+Claude Desktop, Cursor and Codex settings: both the ones with an address and the ones the app
+starts as a program on this computer (shown as "Claude Desktop: crm · runs as a local
+program"). Each shows as "Found on this computer" with a "Use this" button.
 
 Not sure where to find the address, the connection string or the config file? Each step has a
 "Where do I find it?" link. In short: the address is in your AI app's MCP settings (for Claude
@@ -125,6 +126,44 @@ sales role"*. The assistant runs the checks and explains the report.
 
 Set the environment variables in the shell that starts the assistant. The assistant only ever
 sees variable names, never the secrets.
+
+### 5. Local-program servers
+
+Most MCP servers are not at a web address at all: the AI app starts them as a program on your
+computer, from its settings file (`command`, `args` and `env` in `claude_desktop_config.json`,
+`.mcp.json`, Cursor's `mcp.json`, or `[mcp_servers.<name>]` in Codex's `config.toml`). The
+risk there is the database login the program holds, which is often for a database on another
+computer and often written into that settings file in plain text.
+
+```bash
+# read the settings file only; nothing is started
+rolefence-scan --stdio-from ~/Library/Application\ Support/Claude/claude_desktop_config.json
+
+# also start one server once, the way the AI app does, to list its tools (no tool is run)
+rolefence-scan --stdio-from .mcp.json --server crm
+
+# or a command you type yourself
+rolefence-scan --stdio "npx -y some-mcp-server"
+```
+
+What it checks:
+
+- **A password or key written in the settings file.** A connection string with a password in
+  it, or a setting named like a password, token or API key. The report names the server, the
+  file and the setting's *name*, and says whether the database is on this computer or another
+  one. It never shows a value, a host name or any part of the connection string.
+- **Tools that change data**, by name and description (insert, update, delete, create, send…).
+- **Every tool is open to whoever uses this computer**: a local program has no login and no
+  roles; every caller gets every tool.
+
+To list the tools the scanner starts the program with the settings from the file, sends
+`initialize` and `tools/list`, and stops it (after 30 seconds at most; `--stdio-timeout`
+changes that). It has no way to send `tools/call`. Anything the program prints is discarded
+unread. The wizard asks before it starts anything ("This will start crm the way your AI app
+does, ask for its tool list, and stop it. No tool is run."); in `serve` mode the
+`scan_local_program` tool only starts a server named in a settings file, never a free command.
+The network checks (login, gateway, open ports) are listed as "does not apply to a local
+program".
 
 ## What does a report look like?
 
@@ -201,6 +240,9 @@ Compare the two.
 | Aggregate not read-only | `--config` | `mongodb-aggregate` without `readOnly: true` |
 | No row cap | `--config` | Fixed pipelines with no `$limit` |
 | Whole documents | `--config` | Find tools with no projection |
+| Password in a plain text file | `--stdio-from` | A local program's settings hold a database login with its password (high) or a token or API key (medium) |
+| Tools that change data | `--stdio-from --server` or `--stdio` | A local program offers insert, update, delete, create or send tools |
+| Open to whoever uses this computer | `--stdio-from --server` or `--stdio` | A local program's tools have no login and no roles |
 
 Works today with MongoDB and [MCP Toolbox for Databases](https://github.com/googleapis/genai-toolbox),
 with or without [agentgateway](https://agentgateway.dev) in front. Other databases are planned.
@@ -299,7 +341,7 @@ Yes, by design:
 
 ## Where the checks come from
 
-[GAPS.md](GAPS.md) is the log of 29 things that did not hold when we built this setup and tried
+[GAPS.md](GAPS.md) is the log of 30 things that did not hold when we built this setup and tried
 to break it, with the scanner check that catches each. The story version, for people who
 would rather read than scan, is [docs/what-a-model-can-reach.md](docs/what-a-model-can-reach.md).
 

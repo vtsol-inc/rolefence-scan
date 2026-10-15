@@ -58,9 +58,15 @@ Where the scanner catches a row, the check name is given.
 | 28 | hand-edit | Setting up the identity provider is a script of admin API calls: realm, roles, client, audience mappers, scopes with role mappings, users. In dev mode its data lives inside the container and is lost with it. | — |
 | 29 | silent-failure | One AI session held the governed link (through the gateway) and an old direct link to the server side by side. Signed in as sales, it was still offered the finance tools through the direct link. Removing a link from a config file is the only control. | round-the-gateway (if you know to point it there) |
 
+## The AI app
+
+| # | Category | What we found | Scanner check |
+|---|----------|---------------|---------------|
+| 30 | leak | The commonest way to connect an AI app to a database skips all of the above: the app starts the MCP server as a program on the person's computer, and the database login, password included, is written in plain text in the app's settings file. One file read gives the login, often for a database on another computer, with no gateway, login or role in between. | plaintext-db-password, local-tools-open |
+
 ## What this adds up to
 
-Twenty-nine rows, and the three that cost the most time are the ones no tool can see from
+Thirty rows, and the three that cost the most time are the ones no tool can see from
 outside: one decision written in three places (15), what a field means (17), and who the
 person really is once the request reaches the database (25). The scanner finds the rest.
 
