@@ -46,6 +46,29 @@ class State:
     def __init__(self) -> None:
         self.page_token = secrets.token_urlsafe(24)
         self.jobs: dict[str, Job] = {}
+        # values found in running servers' environments; the page only ever sees the ref id
+        self.secrets: dict[str, str] = {}
+        self.config_paths: set[str] = set()
+
+
+def _detect(state: State) -> dict:
+    from . import detect
+
+    servers = []
+    for s in detect.find_servers():
+        env = s.pop("env", {})
+        entry = {k: s.get(k) for k in ("kind", "label", "address", "backend", "config_path")}
+        entry["vars"] = []
+        if s.get("config_path"):
+            state.config_paths.add(s["config_path"])
+            for name in detect.config_env_refs(s["config_path"]):
+                ref = None
+                if name in env and env[name].startswith(("mongodb://", "mongodb+srv://")):
+                    ref = uuid.uuid4().hex
+                    state.secrets[ref] = env[name]
+                entry["vars"].append({"name": name, "ref": ref})
+        servers.append(entry)
+    return {"servers": servers, "apps": detect.find_app_servers()}
 
 
 def _run_job(job: Job, params: dict) -> None:
@@ -173,6 +196,12 @@ def make_handler(state: State):
                 self._json(HTTPStatus.FORBIDDEN, {"error": "bad page token; reload the page"})
                 return
             job = self._job(q)
+            if u.path == "/api/detect":
+                try:
+                    self._json(HTTPStatus.OK, _detect(state))
+                except Exception as e:
+                    self._json(HTTPStatus.OK, {"servers": [], "apps": [], "error": f"{e.__class__.__name__}: {e}"})
+                return
             if u.path == "/api/status":
                 if not job:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "no such job"})
@@ -230,12 +259,27 @@ def make_handler(state: State):
                 finally:
                     c.close()
                 return
+            if u.path == "/api/readconfig":
+                path = str(body.get("path", ""))
+                if path not in state.config_paths:   # only files the detector itself found
+                    self._json(HTTPStatus.FORBIDDEN, {"error": "not a detected config file"})
+                    return
+                try:
+                    with open(path, encoding="utf-8") as fh:
+                        self._json(HTTPStatus.OK, {"text": fh.read(MAX_BODY)})
+                except OSError as e:
+                    self._json(HTTPStatus.OK, {"error": f"could not read the file: {e.strerror}"})
+                return
             if u.path == "/api/testdb":
-                self._json(HTTPStatus.OK, _test_db(str(body.get("db_uri", ""))))
+                uri = state.secrets.get(str(body.get("db_ref", ""))) or str(body.get("db_uri", ""))
+                self._json(HTTPStatus.OK, _test_db(uri))
                 return
             if u.path == "/api/scan":
                 params = {k: body.get(k) for k in ("mcp_url", "token", "role", "backend_url", "db_uri", "config_text")}
+                if body.get("db_ref"):
+                    params["db_uri"] = state.secrets.get(str(body["db_ref"]))
                 if not any(params.get(k) for k in ("mcp_url", "backend_url", "db_uri", "config_text")):
+                    # (db_ref was already resolved into db_uri above)
                     self._json(HTTPStatus.BAD_REQUEST, {"error": "nothing to scan"})
                     return
                 jid = uuid.uuid4().hex

@@ -32,6 +32,12 @@
                     border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
   textarea { min-height: 140px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
   .small { font-size: 14px; color: var(--muted); margin-top: 6px; }
+  .found { background: var(--okbg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 4px 0 12px; font-size: 15px; }
+  .found-title { font-weight: 600; margin-bottom: 4px; }
+  .found .item { display: flex; gap: 10px; align-items: center; padding: 4px 0; flex-wrap: wrap; }
+  .found .item span { flex: 1; min-width: 200px; }
+  .found button { padding: 5px 10px; font-size: 14px; }
+  .found code { font-size: 13px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
   @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
   details.hint { font-size: 15px; margin: -8px 0 14px; }
@@ -94,6 +100,10 @@
         <li>Or ask whoever set the AI up: "what address does the AI use to reach our data?"</li>
       </ul>
     </details>
+    <div id="found" class="found hidden">
+      <div class="found-title">Found on this computer</div>
+      <div id="found_list"></div>
+    </div>
     <label for="mcp_url">Server address</label>
     <input id="mcp_url" type="url" placeholder="http://127.0.0.1:3001/mcp" autocomplete="off" spellcheck="false">
     <div id="test_note"></div>
@@ -129,6 +139,7 @@
         <li>No login to hand? Skip this step. The other checks still run.</li>
       </ul>
     </details>
+    <div id="db_found" class="found hidden"></div>
     <div class="grid2">
       <div><label for="db_host">Server</label><input id="db_host" type="text" placeholder="127.0.0.1" autocomplete="off" spellcheck="false"></div>
       <div><label for="db_port">Port</label><input id="db_port" type="text" placeholder="27017" autocomplete="off"></div>
@@ -163,6 +174,7 @@
         <li>No file to hand? Skip this step. The other checks still run.</li>
       </ul>
     </details>
+    <div id="cfg_found" class="found hidden"></div>
     <label for="config_file">Choose the file</label>
     <input id="config_file" type="file" accept=".yaml,.yml,text/yaml">
     <label for="config_text">Or paste it</label>
@@ -228,6 +240,49 @@
   function note(el, cls, text) { el.innerHTML = ""; const d = document.createElement("div"); d.className = "note " + cls; d.textContent = text; el.appendChild(d); }
   function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
+  // what the wizard found on this machine
+  let chosen = null;        // the detected server the admin picked (address, config_path, vars)
+  let dbRef = null;         // ref id of a login taken from a running server's environment
+  async function loadDetected() {
+    let d; try { d = await api("/api/detect"); } catch (e) { return; }
+    const items = [];
+    (d.servers || []).forEach((s, i) => items.push({ s, text: `<strong>${esc(s.label)}</strong> · <code>${esc(s.address)}</code>` + (s.config_path ? ` · config file found` : "") }));
+    (d.apps || []).forEach(a => items.push({ s: a, text: `${esc(a.label)} · <code>${esc(a.address)}</code>` }));
+    if (!items.length) return;
+    $("found_list").innerHTML = items.map((it, i) => `<div class="item"><span>${it.text}</span><button data-i="${i}">Use this</button></div>`).join("");
+    $("found_list").querySelectorAll("button").forEach(b => b.onclick = () => useDetected(items[+b.dataset.i].s));
+    $("found").classList.remove("hidden");
+  }
+  function useDetected(s) {
+    chosen = s; dbRef = null;
+    $("mcp_url").value = s.address || "";
+    if (s.backend) $("backend_url").value = s.backend;
+    note($("test_note"), "plain", "Filled in. Click Test connection, then Next.");
+    // step 3: a login the server was started with
+    const v = (s.vars || []);
+    const withRef = v.find(x => x.ref);
+    if (withRef) {
+      $("db_found").innerHTML = `<div class="item"><span>This server was started with its database login in the variable <code>${esc(withRef.name)}</code>. The wizard can use it without showing it.</span><button id="use_ref">Use that login</button></div>`;
+      $("db_found").classList.remove("hidden");
+      $("use_ref").onclick = () => { dbRef = withRef.ref; note($("db_note"), "ok", `Using the login from ${withRef.name}. Click Test login to check it.`); };
+    } else if (v.length) {
+      $("db_found").innerHTML = `<div class="item"><span>This server reads its database login from the variable <code>${esc(v.map(x => x.name).join(", "))}</code>, but the wizard could not read its value. Ask whoever started the server, or type the login below.</span></div>`;
+      $("db_found").classList.remove("hidden");
+    } else { $("db_found").classList.add("hidden"); }
+    // step 4: the config file
+    if (s.config_path) {
+      $("cfg_found").innerHTML = `<div class="item"><span>Config file found: <code>${esc(s.config_path)}</code></span><button id="use_cfg">Use this file</button></div>`;
+      $("cfg_found").classList.remove("hidden");
+      $("use_cfg").onclick = async () => {
+        const r = await api("/api/readconfig", { path: s.config_path });
+        if (r.text) { $("config_text").value = r.text; note($("cfg_found"), "ok", "Loaded. Click Review."); }
+        else note($("cfg_found"), "bad", r.error || "Could not read the file.");
+      };
+    } else { $("cfg_found").classList.add("hidden"); }
+  }
+  ["db_host", "db_name", "db_user", "db_pass", "db_uri"].forEach(id => $(id).addEventListener("input", () => { dbRef = null; }));
+  loadDetected();
+
   // step 1
   $("btn_test").onclick = async () => {
     const url = $("mcp_url").value.trim();
@@ -262,18 +317,19 @@
   }
   $("btn_testdb").onclick = async () => {
     const uri = dbUri();
-    if (!uri) { note($("db_note"), "bad", "Fill in at least the server and the database name."); return; }
-    if (!$("db_name").value.trim() && !$("db_uri").value.trim()) { note($("db_note"), "bad", "The database name is needed."); return; }
+    if (!dbRef && !uri) { note($("db_note"), "bad", "Fill in at least the server and the database name."); return; }
+    if (!dbRef && !$("db_name").value.trim() && !$("db_uri").value.trim()) { note($("db_note"), "bad", "The database name is needed."); return; }
     note($("db_note"), "plain", "Testing…");
     try {
-      const r = await api("/api/testdb", { db_uri: uri });
+      const r = await api("/api/testdb", dbRef ? { db_ref: dbRef } : { db_uri: uri });
       note($("db_note"), r.ok ? "ok" : "bad", r.message);
     } catch (e) { note($("db_note"), "bad", "Could not reach the wizard's own server."); }
   };
   function params() {
     return {
       mcp_url: $("mcp_url").value.trim(), token: $("token").value, role: $("role").value.trim() || "the token",
-      backend_url: $("backend_url").value.trim(), db_uri: dbUri(), config_text: $("config_text").value,
+      backend_url: $("backend_url").value.trim(), db_uri: dbRef ? "" : dbUri(), db_ref: dbRef || "",
+      config_text: $("config_text").value,
     };
   }
   function buildPlan() {
@@ -282,13 +338,13 @@
       "Is the server open to the whole network, not just this machine?", "Are clients told which scopes to ask for?");
     if (p.mcp_url && p.token) items.push(`Is the ${p.role} token accepted?`, `Is the ${p.role} role shown tools it may not call?`);
     if (p.backend_url) items.push("Can the server behind the gateway be reached directly, with no token?");
-    if (p.db_uri) items.push("Can the AI's database user write?", "Does server-side JavaScript run?",
+    if (p.db_uri || p.db_ref) items.push("Can the AI's database user write?", "Does server-side JavaScript run?",
       "Can one tool's collection reach other collections?", "Do replies leak the host name or the full query?");
     if (p.config_text) items.push("Are there write tools?", "Do tools accept any query from the model?",
       "Are aggregate tools read-only, with a row cap?", "Do find tools return whole records?");
     if (!items.length) items.push("Nothing to check yet: go back and give at least the server address.");
     $("plan").innerHTML = items.map(t => `<li><span class="dot info"></span><span>${esc(t)}</span></li>`).join("");
-    $("run").disabled = !(p.mcp_url || p.backend_url || p.db_uri || p.config_text);
+    $("run").disabled = !(p.mcp_url || p.backend_url || p.db_uri || p.db_ref || p.config_text);
   }
 
   // run

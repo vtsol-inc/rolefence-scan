@@ -62,6 +62,12 @@ button), an optional config file, then a review and the run. Each check
 appears as it finishes; the findings are shown as cards you can download as an HTML or JSON
 report. Tokens and connection strings are kept in memory for that one run and never saved.
 
+Run it on the machine where the MCP server runs and it finds things itself: running Toolbox
+and agentgateway processes (address, port, config file), the database-login variable the
+server was started with (used without ever being shown), and the MCP addresses in Claude Code,
+Claude Desktop, Cursor and Codex settings. Each shows as "Found on this computer" with a
+"Use this" button.
+
 Not sure where to find the address, the connection string or the config file? Each step has a
 "Where do I find it?" link. In short: the address is in your AI app's MCP settings (for Claude
 Code, `.mcp.json`; for Claude Desktop, Settings → Developer → Edit Config); the config file
