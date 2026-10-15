@@ -5,7 +5,7 @@ description = "Read-only exposure scanner for MCP servers in front of databases:
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
-authors = [{ name = "RoleFence" }]
+authors = [{ name = "VTSOL INC" }]
 keywords = ["mcp", "security", "scanner", "mongodb", "governance", "ai-agents"]
 classifiers = [
   "Development Status :: 3 - Alpha",
