@@ -1,6 +1,6 @@
 [project]
 name = "rolefence-scan"
-version = "0.1.1"
+version = "0.1.2"
 description = "Read-only exposure scanner for MCP servers in front of databases: reports what an AI model could reach that it should not."
 readme = "README.md"
 license = "Apache-2.0"

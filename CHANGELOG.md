@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 (15 Oct 2026)
 
 - Local-program ("stdio") MCP servers: the ones an AI app starts from its settings file
   (`command` + `args` + `env`) are now found in Claude Code, Claude Desktop, Cursor and Codex
