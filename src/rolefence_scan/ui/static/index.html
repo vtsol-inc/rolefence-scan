@@ -32,6 +32,8 @@
                     border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
   textarea { min-height: 140px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
   .small { font-size: 14px; color: var(--muted); margin-top: 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
   details.hint { font-size: 15px; margin: -8px 0 14px; }
   details.hint summary { cursor: pointer; color: var(--accent); font-weight: 600; }
   details.hint ul { margin: 8px 0 0; padding-left: 20px; }
@@ -118,19 +120,35 @@
 
   <!-- Step 3: database -->
   <section class="card hidden" id="s3">
-    <h2>3. Database connection</h2>
-    <p class="hint">Optional. The connection string your MCP server uses to reach MongoDB. With it the scanner can check whether that user can write, run code inside the database, or read other collections. It only reads.</p>
+    <h2>3. Database login</h2>
+    <p class="hint">Optional. The login your MCP server uses to reach MongoDB. With it the scanner can check whether that user can write, run code inside the database, or read other collections. It only reads.</p>
     <details class="hint"><summary>Where do I find it?</summary>
       <ul>
-        <li>It starts with <code>mongodb://</code> and is set as an environment variable where the MCP server runs (the config file above names the variable, e.g. <code>${DB_URI}</code>).</li>
-        <li>Ask whoever runs the server for "the connection string the MCP server uses". Use that exact user, not an admin login: the point is to test what the AI's user can do.</li>
-        <li>No connection string? Skip this step.</li>
+        <li>Ask whoever runs the MCP server for "the database login the AI uses". Use that exact user, not an admin login: the point is to test what the AI's user can do.</li>
+        <li>On the server machine it is usually one line starting with <code>mongodb://</code>; you can paste that whole line under "Advanced" instead of filling the boxes.</li>
+        <li>No login to hand? Skip this step. The other checks still run.</li>
       </ul>
     </details>
-    <label for="db_uri">Connection string</label>
-    <input id="db_uri" type="password" autocomplete="off" placeholder="mongodb://user:password@host:27017/db?authSource=db">
+    <div class="grid2">
+      <div><label for="db_host">Server</label><input id="db_host" type="text" placeholder="127.0.0.1" autocomplete="off" spellcheck="false"></div>
+      <div><label for="db_port">Port</label><input id="db_port" type="text" placeholder="27017" autocomplete="off"></div>
+    </div>
+    <label for="db_name">Database name</label>
+    <input id="db_name" type="text" placeholder="e.g. crm" autocomplete="off" spellcheck="false">
+    <div class="grid2">
+      <div><label for="db_user">Username</label><input id="db_user" type="text" autocomplete="off" spellcheck="false"></div>
+      <div><label for="db_pass">Password</label><input id="db_pass" type="password" autocomplete="new-password"></div>
+    </div>
+    <details class="hint" style="margin-top:12px"><summary>Advanced</summary>
+      <label for="db_auth">Login database (if different from the database name)</label>
+      <input id="db_auth" type="text" placeholder="admin" autocomplete="off" spellcheck="false">
+      <label for="db_uri">Or paste the whole connection string</label>
+      <input id="db_uri" type="password" autocomplete="off" placeholder="mongodb://user:password@host:27017/db?authSource=db">
+      <div class="small">If this is filled in, the boxes above are ignored.</div>
+    </details>
+    <div id="db_note"></div>
     <div class="small">Kept in memory for this run only. Never saved, never sent anywhere.</div>
-    <div class="row"><button id="b3">Back</button><span class="spacer"></span><button class="primary" id="n3">Next</button></div>
+    <div class="row"><button id="b3">Back</button><button id="btn_testdb">Test login</button><span class="spacer"></span><button class="primary" id="n3">Next</button></div>
   </section>
 
   <!-- Step 4: config -->
@@ -231,10 +249,31 @@
   $("n4").onclick = () => { buildPlan(); show(4); };
   $("b5").onclick = () => show(3);
 
+  function dbUri() {
+    const pasted = $("db_uri").value.trim();
+    if (pasted) return pasted;
+    const host = $("db_host").value.trim(), name = $("db_name").value.trim();
+    if (!host && !name && !$("db_user").value.trim()) return "";
+    const port = $("db_port").value.trim() || "27017";
+    const auth = $("db_auth").value.trim() || name;
+    const user = $("db_user").value.trim(), pass = $("db_pass").value;
+    const cred = user ? `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@` : "";
+    return `mongodb://${cred}${host || "127.0.0.1"}:${port}/${encodeURIComponent(name)}?authSource=${encodeURIComponent(auth)}`;
+  }
+  $("btn_testdb").onclick = async () => {
+    const uri = dbUri();
+    if (!uri) { note($("db_note"), "bad", "Fill in at least the server and the database name."); return; }
+    if (!$("db_name").value.trim() && !$("db_uri").value.trim()) { note($("db_note"), "bad", "The database name is needed."); return; }
+    note($("db_note"), "plain", "Testing…");
+    try {
+      const r = await api("/api/testdb", { db_uri: uri });
+      note($("db_note"), r.ok ? "ok" : "bad", r.message);
+    } catch (e) { note($("db_note"), "bad", "Could not reach the wizard's own server."); }
+  };
   function params() {
     return {
       mcp_url: $("mcp_url").value.trim(), token: $("token").value, role: $("role").value.trim() || "the token",
-      backend_url: $("backend_url").value.trim(), db_uri: $("db_uri").value, config_text: $("config_text").value,
+      backend_url: $("backend_url").value.trim(), db_uri: dbUri(), config_text: $("config_text").value,
     };
   }
   function buildPlan() {
@@ -312,7 +351,7 @@
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
-  $("again").onclick = () => { $("token").value = ""; $("db_uri").value = ""; show(0); };
+  $("again").onclick = () => { $("token").value = ""; $("db_uri").value = ""; $("db_pass").value = ""; show(0); };
   show(0);
 })();
 </script>

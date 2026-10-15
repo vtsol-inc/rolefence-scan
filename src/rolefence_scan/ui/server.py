@@ -77,6 +77,40 @@ def _run_job(job: Job, params: dict) -> None:
         job.done = True
 
 
+def _test_db(uri: str) -> dict:
+    """Ping the database as the given user and say who it is. Read-only."""
+    from pymongo import MongoClient
+    from pymongo.errors import ConfigurationError, OperationFailure, PyMongoError
+
+    if not uri.startswith("mongodb://") and not uri.startswith("mongodb+srv://"):
+        return {"ok": False, "message": "That does not look like a MongoDB login."}
+    try:
+        client = MongoClient(uri, serverSelectionTimeoutMS=4000, connectTimeoutMS=4000)
+        try:
+            name = client.get_default_database(default=None)
+            if name is None:
+                return {"ok": False, "message": "The database name is missing."}
+            db = client[name.name]
+            db.command("ping")
+            status = db.command("connectionStatus")
+            users = status.get("authInfo", {}).get("authenticatedUsers", [])
+            who = users[0]["user"] if users else None
+            n = len(db.list_collection_names(authorizedCollections=True, nameOnly=True))
+            if who:
+                return {"ok": True, "message": f"Logged in as {who}; this user can see {n} collection(s) in {name.name}."}
+            return {"ok": True, "message": f"Connected to {name.name} with no login (the database has authentication off)."}
+        finally:
+            client.close()
+    except OperationFailure as e:
+        if e.code == 18:
+            return {"ok": False, "message": "The database refused the username or password."}
+        return {"ok": False, "message": f"The database refused the login: {e.details.get('errmsg', str(e))[:140]}"}
+    except ConfigurationError as e:
+        return {"ok": False, "message": f"The login details are not valid: {str(e)[:140]}"}
+    except PyMongoError as e:
+        return {"ok": False, "message": "Nothing answered at that server and port. Is the database running, and reachable from this machine?"}
+
+
 def make_handler(state: State):
     index_html = resources.files(__package__).joinpath("static/index.html").read_text(encoding="utf-8")
 
@@ -195,6 +229,9 @@ def make_handler(state: State):
                         self._json(HTTPStatus.OK, {"ok": False, "message": f"The server answered HTTP {init.status} but did not speak MCP."})
                 finally:
                     c.close()
+                return
+            if u.path == "/api/testdb":
+                self._json(HTTPStatus.OK, _test_db(str(body.get("db_uri", ""))))
                 return
             if u.path == "/api/scan":
                 params = {k: body.get(k) for k in ("mcp_url", "token", "role", "backend_url", "db_uri", "config_text")}

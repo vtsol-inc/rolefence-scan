@@ -57,7 +57,8 @@ rolefence-scan ui
 
 This opens a page on your own computer (`http://127.0.0.1:8765`, reachable only from this
 machine) that walks you through five short steps: the server address, an optional login token,
-an optional database connection, an optional config file, then a review and the run. Each check
+an optional database login (server, database name, username, password, with a "Test login"
+button), an optional config file, then a review and the run. Each check
 appears as it finishes; the findings are shown as cards you can download as an HTML or JSON
 report. Tokens and connection strings are kept in memory for that one run and never saved.
 
