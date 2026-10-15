@@ -234,6 +234,15 @@ configs in front of it: `gateway_good.yaml` (port 3011, passes the token on) and
 into the terminal, never written to a file; `get_token.sh` fetches a token into a variable and
 prints only who it is for.
 
+The whole thing in one command (asks for the passwords, starts everything, runs the three
+scans, stops what it started):
+
+```bash
+demo/gateway/run_live.sh        # set AGENTGATEWAY=/path/to/agentgateway if it is not on PATH
+```
+
+Or step by step:
+
 ```bash
 # 1. Keycloak (Docker) and the demo realm
 docker run -d --name keycloak -p 127.0.0.1:8080:8080 -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
