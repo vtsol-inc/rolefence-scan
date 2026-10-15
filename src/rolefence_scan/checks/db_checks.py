@@ -128,9 +128,25 @@ def check_cross_collection(report: Report, db, readable: list[str], hinted: list
                 reached.append(t)
         except OperationFailure:
             refused.append(t)
+    finding = cross_collection_verdict(start, readable, reached, refused)
+    if finding:
+        report.add(finding)
+    else:
+        report.ok("cross-collection")
+
+
+# Often refused even for a user that can read every collection, so a refusal here says
+# nothing about whether the role is contained.
+NOT_A_BOUNDARY = {"system.views"}
+
+
+def cross_collection_verdict(start: str, readable: list[str], reached: list[str],
+                             refused: list[str]) -> Finding | None:
+    """Turn the $lookup results into a finding; None means no other collection was reached."""
     beyond = [t for t in reached if t not in readable]
+    real_refused = [t for t in refused if t not in NOT_A_BOUNDARY]
     if beyond:
-        report.add(Finding(
+        return Finding(
             id="cross-collection", title="A tool's collection is not a boundary", severity=MEDIUM,
             what=f"From {start}, $lookup returned rows from collections the user cannot list: {', '.join(beyond)}.",
             why="A tool that is 'about enquiries' can still read any other collection the database user "
@@ -138,27 +154,26 @@ def check_cross_collection(report: Report, db, readable: list[str], hinted: list
             fix="Give each role a database user that can read only its own collections or views, and keep "
                 "aggregate tools fixed (no caller-supplied pipeline).",
             evidence={"from": start, "reached": reached[:20], "refused": refused[:20]},
-        ))
-    elif reached and refused:
-        report.add(Finding(
+        )
+    if reached and real_refused:
+        return Finding(
             id="cross-collection-contained", title="Cross-collection reach is contained by the database role", severity=LOW,
             what=f"From {start}, $lookup reached only the role's own collections ({', '.join(reached)}) "
-                 f"and was refused on {', '.join(t for t in refused if t != 'system.views')}.",
+                 f"and was refused on {', '.join(real_refused)}.",
             why="Good: the database user, not the tool, is the boundary. A tool still reads any collection "
                 "in that set, so keep pipelines fixed.",
             fix="Nothing to change at the database. Keep aggregate tools fixed (no caller-supplied pipeline).",
             evidence={"from": start, "reached": reached[:20], "refused": refused[:20]},
-        ))
-    elif reached:
-        report.add(Finding(
+        )
+    if reached:
+        return Finding(
             id="cross-collection", title="A tool's collection is not a boundary", severity=MEDIUM,
             what=f"From {start}, $lookup returned rows from every other collection: {', '.join(reached)}.",
             why="The database user can read the whole database, so any tool can read any collection.",
             fix="Give each role a database user that can read only its own collections or views.",
-            evidence={"from": start, "reached": reached[:20]},
-        ))
-    else:
-        report.ok("cross-collection")
+            evidence={"from": start, "reached": reached[:20], "refused": refused[:20]},
+        )
+    return None
 
 
 def check_leaks(report: Report, db, collections: list[str]) -> None:
