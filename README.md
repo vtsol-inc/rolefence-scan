@@ -49,7 +49,19 @@ uvx rolefence-scan --help
 
 (or `pipx install rolefence-scan`)
 
-### 2. Run it against your AI's address
+### 2. The easy way: the wizard in your browser
+
+```bash
+rolefence-scan ui
+```
+
+This opens a page on your own computer (`http://127.0.0.1:8765`, reachable only from this
+machine) that walks you through five short steps: the server address, an optional login token,
+an optional database connection, an optional config file, then a review and the run. Each check
+appears as it finishes; the findings are shown as cards you can download as an HTML or JSON
+report. Tokens and connection strings are kept in memory for that one run and never saved.
+
+### 2b. Or the command line
 
 The simplest run: just the address your AI assistant is configured with.
 

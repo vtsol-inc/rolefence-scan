@@ -41,6 +41,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"rolefence-scan {__version__}")
     sub = p.add_subparsers(dest="command")
     sub.add_parser("serve", help="run as an MCP server (stdio) so an AI assistant can run scans")
+    ui = sub.add_parser("ui", help="open the step-by-step wizard in your browser (local only)")
+    ui.add_argument("--port", type=int, default=8765, help="port on 127.0.0.1 (default 8765; 0 picks a free one)")
+    ui.add_argument("--no-browser", action="store_true", help="do not open the browser automatically")
     return p
 
 
@@ -49,6 +52,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         from .server import serve
         serve()
+        return 0
+    if args.command == "ui":
+        from .ui.server import serve_ui
+        serve_ui(port=args.port, open_browser=not args.no_browser)
         return 0
     if not (args.mcp or args.backend or args.db_env or args.config):
         print("nothing to scan: give --mcp, --backend, --db-env or --config", file=sys.stderr)

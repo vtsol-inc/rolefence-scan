@@ -3,14 +3,17 @@ from environment variables by the caller; nothing here reads argv."""
 
 from __future__ import annotations
 
+from typing import Callable
+
 from .checks import config_checks, db_checks, mcp_checks
 from .report import Report
 
 
 def scan(mcp_url: str | None = None, token: str | None = None, backend_url: str | None = None,
-         db_uri: str | None = None, config_path: str | None = None, role_label: str = "the token") -> Report:
+         db_uri: str | None = None, config_path: str | None = None, role_label: str = "the token",
+         on_event: Callable[[str, dict], None] | None = None) -> Report:
     target = mcp_url or backend_url or (config_path and f"config {config_path}") or "database"
-    report = Report(target=target)
+    report = Report(target=target, on_event=on_event)
     hinted: list[str] = []
 
     if config_path:

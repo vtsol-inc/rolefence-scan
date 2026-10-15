@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rolefence-scan</title>
+<style>
+  :root {
+    --bg: #f7f8fa; --card: #ffffff; --text: #101828; --muted: #475467; --line: #e4e7ec;
+    --accent: #1d4ed8; --accent-text: #ffffff; --ok: #067647; --okbg: #ecfdf3;
+    --high: #b42318; --highbg: #fef3f2; --medium: #b54708; --mediumbg: #fffaeb;
+    --low: #175cd3; --lowbg: #eff8ff; --info: #475467; --infobg: #f2f4f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1117; --card: #171a21; --text: #f2f4f7; --muted: #98a2b3; --line: #2a2f3a;
+            --accent: #3b82f6; --okbg: #0b2a1b; --highbg: #2b1210; --mediumbg: #2a1d08; --lowbg: #0c1e36; --infobg: #1f242e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  header h1 { font-size: 24px; margin: 0; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  .steps { display: flex; gap: 6px; margin: 24px 0 16px; }
+  .steps div { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+  .steps div.on { background: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+  h2 { font-size: 19px; margin: 0 0 6px; }
+  .hint { color: var(--muted); margin: 0 0 16px; }
+  label { display: block; font-weight: 600; margin: 14px 0 6px; }
+  input, textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+                    border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  textarea { min-height: 140px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+  .small { font-size: 14px; color: var(--muted); margin-top: 6px; }
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 20px; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 600; border-radius: 8px; padding: 10px 16px; cursor: pointer;
+           border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .spacer { flex: 1; }
+  .note { border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 15px; }
+  .note.ok { background: var(--okbg); color: var(--ok); }
+  .note.bad { background: var(--highbg); color: var(--high); }
+  .note.plain { background: var(--infobg); color: var(--muted); }
+  .hidden { display: none; }
+  ul.live { list-style: none; padding: 0; margin: 12px 0 0; }
+  ul.live li { padding: 6px 0; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: baseline; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; margin-top: 7px; }
+  .dot.ok { background: var(--ok); } .dot.skip { background: var(--muted); }
+  .dot.high { background: var(--high); } .dot.medium { background: var(--medium); }
+  .dot.low { background: var(--low); } .dot.info { background: var(--info); }
+  .finding { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 12px 0; background: var(--card); }
+  .sev { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+         border-radius: 6px; padding: 2px 8px; margin-right: 8px; vertical-align: middle; }
+  .sev.high { background: var(--highbg); color: var(--high); } .sev.medium { background: var(--mediumbg); color: var(--medium); }
+  .sev.low { background: var(--lowbg); color: var(--low); } .sev.info { background: var(--infobg); color: var(--info); }
+  .finding h3 { display: inline; font-size: 17px; margin: 0; vertical-align: middle; }
+  .finding dl { margin: 10px 0 0; display: grid; grid-template-columns: 130px 1fr; gap: 6px 12px; }
+  .finding dt { color: var(--muted); font-weight: 600; } .finding dd { margin: 0; }
+  .finding code { font-size: 13px; background: var(--infobg); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+  .summary { font-size: 18px; margin: 0 0 6px; }
+  .pill { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 14px; margin-right: 6px; background: var(--infobg); }
+  .sp { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent);
+        border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { color: var(--muted); font-size: 14px; margin-top: 28px; }
+  @media (max-width: 520px) { .finding dl { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>rolefence-scan</h1>
+    <p>What can your AI assistant really reach in your database? Five short steps. Nothing leaves this computer.</p>
+  </header>
+
+  <div class="steps" id="steps"><div class="on"></div><div></div><div></div><div></div><div></div></div>
+
+  <!-- Step 1: address -->
+  <section class="card" id="s1">
+    <h2>1. Where is your AI's server?</h2>
+    <p class="hint">The address your AI assistant is set up with. It usually ends in <code>/mcp</code>. If a gateway sits in front, give the gateway's address here.</p>
+    <label for="mcp_url">Server address</label>
+    <input id="mcp_url" type="url" placeholder="http://127.0.0.1:3001/mcp" autocomplete="off" spellcheck="false">
+    <div id="test_note"></div>
+    <div class="row">
+      <button id="btn_test">Test connection</button>
+      <span class="spacer"></span>
+      <button class="primary" id="n1">Next</button>
+    </div>
+  </section>
+
+  <!-- Step 2: login -->
+  <section class="card hidden" id="s2">
+    <h2>2. Do you have a login token?</h2>
+    <p class="hint">Optional. With a token for one role (say, sales) the scanner can check whether that role is shown tools it may not use, and whether the token is accepted at all. Leave empty to skip.</p>
+    <label for="token">Token for one role</label>
+    <input id="token" type="password" autocomplete="off" placeholder="paste a bearer token">
+    <label for="role">Which role is it for?</label>
+    <input id="role" type="text" placeholder="sales" autocomplete="off">
+    <label for="backend_url">The server's own address behind the gateway</label>
+    <input id="backend_url" type="url" placeholder="http://127.0.0.1:5002/mcp" autocomplete="off" spellcheck="false">
+    <div class="small">Optional. If you gave a gateway in step 1, this lets the scanner try to go round it.</div>
+    <div class="row"><button id="b2">Back</button><span class="spacer"></span><button class="primary" id="n2">Next</button></div>
+  </section>
+
+  <!-- Step 3: database -->
+  <section class="card hidden" id="s3">
+    <h2>3. Database connection</h2>
+    <p class="hint">Optional. The connection string your MCP server uses to reach MongoDB. With it the scanner can check whether that user can write, run code inside the database, or read other collections. It only reads.</p>
+    <label for="db_uri">Connection string</label>
+    <input id="db_uri" type="password" autocomplete="off" placeholder="mongodb://user:password@host:27017/db?authSource=db">
+    <div class="small">Kept in memory for this run only. Never saved, never sent anywhere.</div>
+    <div class="row"><button id="b3">Back</button><span class="spacer"></span><button class="primary" id="n3">Next</button></div>
+  </section>
+
+  <!-- Step 4: config -->
+  <section class="card hidden" id="s4">
+    <h2>4. The server's config file</h2>
+    <p class="hint">Optional. Drop or paste the MCP Toolbox <code>tools.yaml</code>. The scanner reads how each tool is written: write tools, free-form queries, missing row caps, whole records.</p>
+    <label for="config_file">Choose the file</label>
+    <input id="config_file" type="file" accept=".yaml,.yml,text/yaml">
+    <label for="config_text">Or paste it</label>
+    <textarea id="config_text" spellcheck="false" placeholder="sources: ..."></textarea>
+    <div class="row"><button id="b4">Back</button><span class="spacer"></span><button class="primary" id="n4">Review</button></div>
+  </section>
+
+  <!-- Step 5: review and run -->
+  <section class="card hidden" id="s5">
+    <h2>5. Ready to scan</h2>
+    <p class="hint">This is what the scanner will check. Nothing is changed on your server or in your database.</p>
+    <ul class="live" id="plan"></ul>
+    <div class="row"><button id="b5">Back</button><span class="spacer"></span><button class="primary" id="run">Run the scan</button></div>
+  </section>
+
+  <!-- Running -->
+  <section class="card hidden" id="s6">
+    <h2 id="run_title"><span class="sp"></span>Scanning…</h2>
+    <p class="hint">Each check appears below as it finishes.</p>
+    <ul class="live" id="live"></ul>
+    <div id="run_error"></div>
+  </section>
+
+  <!-- Results -->
+  <section class="hidden" id="s7">
+    <div class="card">
+      <p class="summary" id="sum_line"></p>
+      <div id="sum_pills"></div>
+      <div class="row">
+        <a id="dl_html" href="#"><button>Download report (HTML)</button></a>
+        <a id="dl_json" href="#"><button>Download report (JSON)</button></a>
+        <span class="spacer"></span>
+        <button id="again">Scan again</button>
+      </div>
+    </div>
+    <div id="findings"></div>
+    <div class="card" id="passed_card"></div>
+  </section>
+
+  <footer>Read-only by design. The report never contains data values, only names and counts. Part of <a href="https://rolefence.com">RoleFence</a>.</footer>
+</div>
+
+<script>
+(function () {
+  const TOKEN = "__PAGE_TOKEN__";
+  const $ = (id) => document.getElementById(id);
+  const steps = ["s1", "s2", "s3", "s4", "s5"];
+  let current = 0;
+
+  function show(i) {
+    steps.forEach((s, k) => $(s).classList.toggle("hidden", k !== i));
+    $("s6").classList.add("hidden"); $("s7").classList.add("hidden");
+    [...$("steps").children].forEach((d, k) => d.classList.toggle("on", k <= i));
+    current = i;
+    window.scrollTo({ top: 0 });
+  }
+  async function api(path, body) {
+    const opts = { headers: { "X-RF-Token": TOKEN } };
+    if (body !== undefined) { opts.method = "POST"; opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+    const r = await fetch(path, opts);
+    return r.json();
+  }
+  function note(el, cls, text) { el.innerHTML = ""; const d = document.createElement("div"); d.className = "note " + cls; d.textContent = text; el.appendChild(d); }
+  function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+  // step 1
+  $("btn_test").onclick = async () => {
+    const url = $("mcp_url").value.trim();
+    if (!url) { note($("test_note"), "bad", "Type the server address first."); return; }
+    note($("test_note"), "plain", "Testing…");
+    try {
+      const r = await api("/api/test", { mcp_url: url, token: $("token").value });
+      note($("test_note"), r.ok ? "ok" : "bad", r.message);
+    } catch (e) { note($("test_note"), "bad", "Could not reach the wizard's own server. Is `rolefence-scan ui` still running?"); }
+  };
+  $("n1").onclick = () => show(1);
+  $("b2").onclick = () => show(0); $("n2").onclick = () => show(2);
+  $("b3").onclick = () => show(1); $("n3").onclick = () => show(3);
+  $("b4").onclick = () => show(2);
+  $("config_file").onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader(); rd.onload = () => { $("config_text").value = rd.result; }; rd.readAsText(f);
+  };
+  $("n4").onclick = () => { buildPlan(); show(4); };
+  $("b5").onclick = () => show(3);
+
+  function params() {
+    return {
+      mcp_url: $("mcp_url").value.trim(), token: $("token").value, role: $("role").value.trim() || "the token",
+      backend_url: $("backend_url").value.trim(), db_uri: $("db_uri").value, config_text: $("config_text").value,
+    };
+  }
+  function buildPlan() {
+    const p = params(); const items = [];
+    if (p.mcp_url) items.push("Does the server list tools without a login?", "Does the bare /mcp address serve every tool?",
+      "Is the server open to the whole network, not just this machine?", "Are clients told which scopes to ask for?");
+    if (p.mcp_url && p.token) items.push(`Is the ${p.role} token accepted?`, `Is the ${p.role} role shown tools it may not call?`);
+    if (p.backend_url) items.push("Can the server behind the gateway be reached directly, with no token?");
+    if (p.db_uri) items.push("Can the AI's database user write?", "Does server-side JavaScript run?",
+      "Can one tool's collection reach other collections?", "Do replies leak the host name or the full query?");
+    if (p.config_text) items.push("Are there write tools?", "Do tools accept any query from the model?",
+      "Are aggregate tools read-only, with a row cap?", "Do find tools return whole records?");
+    if (!items.length) items.push("Nothing to check yet: go back and give at least the server address.");
+    $("plan").innerHTML = items.map(t => `<li><span class="dot info"></span><span>${esc(t)}</span></li>`).join("");
+    $("run").disabled = !(p.mcp_url || p.backend_url || p.db_uri || p.config_text);
+  }
+
+  // run
+  const LABELS = {
+    "open-tool-list": "Tools listed without a login", "default-toolset": "Bare /mcp serves every tool",
+    "scopes-advertised": "Scopes advertised to clients", "listening-everywhere": "Open to the whole network",
+    "tool-list-filtered": "Tool list filtered for this role", "round-the-gateway": "Server reachable round the gateway",
+    "writes-allowed": "Database user can write", "server-side-js": "Server-side JavaScript", "cross-collection": "Cross-collection reach",
+    "leaks-in-errors": "Leaks in replies", "write-tools": "Write tools", "free-form-queries": "Free-form queries",
+    "aggregate-not-readonly": "Aggregate read-only", "no-row-cap": "Row cap", "whole-documents": "Whole documents",
+    "database checks": "Database checks", "config checks": "Config checks",
+  };
+  $("run").onclick = async () => {
+    const p = params();
+    steps.forEach(s => $(s).classList.add("hidden")); $("s6").classList.remove("hidden"); $("live").innerHTML = ""; $("run_error").innerHTML = "";
+    let job;
+    try { job = (await api("/api/scan", p)).job; } catch (e) { note($("run_error"), "bad", "Could not start the scan."); return; }
+    let seen = 0;
+    const poll = async () => {
+      const st = await api(`/api/status?job=${job}`);
+      for (; seen < st.events.length; seen++) addLive(st.events[seen]);
+      if (st.error) note($("run_error"), "bad", "The scan stopped: " + st.error);
+      if (!st.done) { setTimeout(poll, 500); return; }
+      $("run_title").textContent = "Done";
+      if (st.summary) showResults(job, st);
+    };
+    poll();
+  };
+  function addLive(ev) {
+    const li = document.createElement("li");
+    if (ev.kind === "finding") li.innerHTML = `<span class="dot ${esc(ev.severity)}"></span><span><strong>${esc(ev.title)}</strong> <span class="small">(${esc(ev.severity)})</span></span>`;
+    else if (ev.kind === "ok") li.innerHTML = `<span class="dot ok"></span><span>${esc(LABELS[ev.check] || ev.check)}: fine</span>`;
+    else li.innerHTML = `<span class="dot skip"></span><span>${esc(LABELS[ev.check] || ev.check)}: could not run (${esc(ev.reason)})</span>`;
+    $("live").appendChild(li);
+  }
+  async function showResults(job, st) {
+    const full = await (await fetch(`/api/report.json?job=${job}`, { headers: { "X-RF-Token": TOKEN } })).json();
+    const f = full.findings; const counts = {};
+    f.forEach(x => counts[x.severity] = (counts[x.severity] || 0) + 1);
+    $("sum_line").textContent = f.length ? `${f.length} finding${f.length === 1 ? "" : "s"} for ${full.target}` : `No problems found for ${full.target}`;
+    $("sum_pills").innerHTML = ["high", "medium", "low", "info"].filter(s => counts[s]).map(s => `<span class="pill sev ${s}">${counts[s]} ${s}</span>`).join("")
+      + `<span class="pill">${full.passed.length} passed</span>` + (full.skipped.length ? `<span class="pill">${full.skipped.length} could not run</span>` : "");
+    $("findings").innerHTML = f.map(x => `
+      <div class="finding">
+        <span class="sev ${esc(x.severity)}">${esc(x.severity)}</span><h3>${esc(x.title)}</h3>
+        <dl><dt>What we saw</dt><dd>${esc(x.what)}</dd>
+            <dt>Why it matters</dt><dd>${esc(x.why)}</dd>
+            <dt>How to close it</dt><dd>${esc(x.fix)}</dd>
+            ${Object.keys(x.evidence || {}).length ? `<dt>Details</dt><dd><code>${esc(JSON.stringify(x.evidence))}</code></dd>` : ""}
+        </dl></div>`).join("");
+    $("passed_card").innerHTML = (full.passed.length ? `<p><strong>Checks that passed:</strong> ${esc(full.passed.map(c => LABELS[c] || c).join(", "))}</p>` : "")
+      + (full.skipped.length ? `<p><strong>Could not run:</strong></p><ul>${full.skipped.map(s => `<li>${esc(s)}</li>`).join("")}</ul>` : "");
+    $("passed_card").classList.toggle("hidden", !full.passed.length && !full.skipped.length);
+    $("dl_html").onclick = (e) => { e.preventDefault(); download(`/api/report.html?job=${job}`, "rolefence-scan-report.html"); };
+    $("dl_json").onclick = (e) => { e.preventDefault(); download(`/api/report.json?job=${job}`, "rolefence-scan-report.json"); };
+    $("s6").classList.add("hidden"); $("s7").classList.remove("hidden"); window.scrollTo({ top: 0 });
+  }
+  async function download(path, name) {
+    const blob = await (await fetch(path, { headers: { "X-RF-Token": TOKEN } })).blob();
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  $("again").onclick = () => { $("token").value = ""; $("db_uri").value = ""; show(0); };
+  show(0);
+})();
+</script>
+</body>
+</html>
