@@ -14,6 +14,12 @@
   `--stdio-timeout`; wizard (asks before starting anything); `serve` tool `scan_local_program`.
 - Reports list checks that "do not apply here" (the network checks, for a local program)
   separately from checks that could not run; JSON has a new `not_applicable` list.
+- Wizard: "Found on this computer" is sorted from the settings alone into "Talks to a
+  database" (first), "Unknown: may reach your data, check it", and well-known tools that are
+  not databases (folded away, still scannable). The list of known servers is one data file,
+  `src/rolefence_scan/data/known_servers.json`.
+- Wizard: a server listed in several places shows once, with the apps that list it; scanning
+  it checks every copy's settings. An address that is also a running server shows once.
 - `GAPS.md` row 30: the database login in plain text in an AI app's settings file.
 
 ## 0.1.1 (15 Oct 2026)

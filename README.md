@@ -69,6 +69,26 @@ Claude Desktop, Cursor and Codex settings: both the ones with an address and the
 starts as a program on this computer (shown as "Claude Desktop: crm · runs as a local
 program"). Each shows as "Found on this computer" with a "Use this" button.
 
+The list is sorted from the settings alone (nothing is started, no value is shown):
+
+- **Talks to a database** first: a database connection in its settings (a `mongodb://`,
+  `postgres://`, `mysql://`… string, or settings named like `MONGO_…`, `DATABASE_…`, `DB_…`),
+  or a known database MCP server such as MCP Toolbox for Databases.
+- **Unknown** next, with "may reach your data, check it".
+- **Well-known tools that are not databases** (browser automation, documentation lookup, code
+  hosting and the like) folded away under "N other MCP servers that do not look like
+  databases — show". They can still be scanned.
+
+The same server listed in several places shows once, with every app that lists it
+("Claude Code, Cursor"); a scan of it checks every copy's settings for plain-text passwords.
+
+To teach the scanner another well-known server, add a line to
+[`src/rolefence_scan/data/known_servers.json`](src/rolefence_scan/data/known_servers.json),
+under `databases` or `tools`: a name, and the patterns that identify it. A pattern is the
+program's name (`toolbox`), a package (`@scope/package`, any `@version` is ignored), a Docker
+image (`mcp/name`), or a web address's host (`mcp.example.com`, which also matches its
+subdomains). Pull requests welcome.
+
 Not sure where to find the address, the connection string or the config file? Each step has a
 "Where do I find it?" link. In short: the address is in your AI app's MCP settings (for Claude
 Code, `.mcp.json`; for Claude Desktop, Settings → Developer → Edit Config); the config file

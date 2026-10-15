@@ -1,0 +1,32 @@
+{
+  "_about": "Publicly published MCP servers, used only to sort what the wizard finds into 'talks to a database' and 'well-known tool, not a database'. A pattern matches the program's name, a package in its arguments (a version like @latest is ignored), a Docker image, or a web address's host. Add a line to extend it; see README, 'Found on this computer'.",
+  "databases": [
+    {"name": "MCP Toolbox for Databases", "match": ["toolbox", "genai-toolbox", "@toolbox-sdk/server"]},
+    {"name": "MongoDB MCP server", "match": ["mongodb-mcp-server", "mcp/mongodb"]},
+    {"name": "PostgreSQL MCP server", "match": ["@modelcontextprotocol/server-postgres", "mcp-server-postgres", "postgres-mcp", "mcp/postgres"]},
+    {"name": "SQLite MCP server", "match": ["@modelcontextprotocol/server-sqlite", "mcp-server-sqlite", "mcp/sqlite"]},
+    {"name": "MySQL MCP server", "match": ["mcp-server-mysql", "mysql-mcp-server", "mysql_mcp_server"]},
+    {"name": "Supabase MCP server", "match": ["@supabase/mcp-server-supabase", "mcp.supabase.com"]},
+    {"name": "Neon MCP server", "match": ["@neondatabase/mcp-server-neon", "mcp.neon.tech"]},
+    {"name": "Redis MCP server", "match": ["@modelcontextprotocol/server-redis", "mcp-redis"]},
+    {"name": "ClickHouse MCP server", "match": ["mcp-clickhouse"]},
+    {"name": "Snowflake MCP server", "match": ["mcp-snowflake-server"]},
+    {"name": "BigQuery MCP server", "match": ["mcp-server-bigquery"]}
+  ],
+  "tools": [
+    {"name": "Playwright", "match": ["@playwright/mcp", "playwright-mcp"]},
+    {"name": "Puppeteer", "match": ["@modelcontextprotocol/server-puppeteer", "puppeteer-mcp-server"]},
+    {"name": "Context7", "match": ["@upstash/context7-mcp", "mcp.context7.com"]},
+    {"name": "GitHub", "match": ["github-mcp-server", "api.githubcopilot.com", "@modelcontextprotocol/server-github"]},
+    {"name": "Ahrefs", "match": ["@ahrefs/mcp", "api.ahrefs.com"]},
+    {"name": "SonarQube", "match": ["sonarqube", "mcp/sonarqube", "sonarqube-mcp-server"]},
+    {"name": "Filesystem", "match": ["@modelcontextprotocol/server-filesystem", "mcp/filesystem"]},
+    {"name": "Fetch", "match": ["mcp-server-fetch", "@modelcontextprotocol/server-fetch", "mcp/fetch"]},
+    {"name": "Git", "match": ["mcp-server-git", "mcp/git"]},
+    {"name": "Time", "match": ["mcp-server-time", "mcp/time"]},
+    {"name": "Memory", "match": ["@modelcontextprotocol/server-memory", "mcp/memory"]},
+    {"name": "Sequential thinking", "match": ["@modelcontextprotocol/server-sequential-thinking", "mcp/sequentialthinking"]},
+    {"name": "Everything (MCP test server)", "match": ["@modelcontextprotocol/server-everything"]},
+    {"name": "Computer use", "match": ["computer-use"]}
+  ]
+}

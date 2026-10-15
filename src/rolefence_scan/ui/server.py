@@ -54,26 +54,28 @@ class State:
         # values found in running servers' environments; the page only ever sees the ref id
         self.secrets: dict[str, str] = {}
         self.config_paths: set[str] = set()
-        # local-program servers by ref: (settings file, app, position in that file). Re-read from
-        # the file when used, so their settings' values are not held here.
-        self.stdio: dict[str, tuple[str, str, int]] = {}
-        # database logins inside a local-program server's settings, by ref: (stdio ref, setting name)
-        self.stdio_vars: dict[str, tuple[str, str]] = {}
+        # local-program servers by ref: every copy of one server, as (settings file, app, position
+        # in that file). Re-read from the file when used, so their settings' values are not held here.
+        self.stdio: dict[str, list[tuple[str, str, int]]] = {}
+        # database logins inside a local-program server's settings, by ref: (settings file, app,
+        # position, setting name)
+        self.stdio_vars: dict[str, tuple[str, str, int, str]] = {}
 
-    def stdio_server(self, ref: str) -> StdioServer | None:
-        where = self.stdio.get(ref)
-        if not where:
-            return None
-        path, app, i = where
+    @staticmethod
+    def _load(path: str, app: str, i: int) -> StdioServer | None:
         servers = load_stdio_servers(path, app=app)
         return servers[i] if i < len(servers) else None
+
+    def stdio_group(self, ref: str) -> list[StdioServer]:
+        """Every copy of the server (the first is the one started); empty if none is left."""
+        return [s for s in (self._load(*where) for where in self.stdio.get(ref, [])) if s]
 
     def secret(self, ref: str) -> str | None:
         if ref in self.secrets:
             return self.secrets[ref]
         if ref in self.stdio_vars:
-            sref, key = self.stdio_vars[ref]
-            srv = self.stdio_server(sref)
+            path, app, i, key = self.stdio_vars[ref]
+            srv = self._load(path, app, i)
             return srv.env.get(key) if srv else None
         return None
 
@@ -96,21 +98,27 @@ def _detect(state: State) -> dict:
                 entry["vars"].append({"name": name, "ref": ref})
         servers.append(entry)
     stdio = []
-    positions: dict[str, int] = {}
-    for srv in detect.find_app_stdio_servers():
-        key = f"{srv.app}\0{srv.settings_path}"
-        i = positions.get(key, 0)
-        positions[key] = i + 1
+    for g in detect.find_app_stdio_groups():
+        first: StdioServer = g["servers"][0]
         ref = uuid.uuid4().hex
-        state.stdio[ref] = (srv.settings_path, srv.app, i)
-        entry = {**srv.public(), "ref": ref, "vars": []}
-        for name, value in srv.env.items():
-            if value.startswith(("mongodb://", "mongodb+srv://")):
-                vref = uuid.uuid4().hex
-                state.stdio_vars[vref] = (ref, name)
-                entry["vars"].append({"name": name, "ref": vref})
+        state.stdio[ref] = [(s.settings_path, s.app, s.index) for s in g["servers"]]
+        app = ", ".join(g["apps"])
+        entry = {**first.public(), "app": app, "apps": g["apps"], "group": g["group"], "known": g["known"],
+                 "label": f"{app}: {first.name} · runs as a local program",
+                 "settings_paths": sorted({s.settings_path for s in g["servers"]}), "ref": ref, "vars": []}
+        names = set()
+        for srv in g["servers"]:
+            for name, value in srv.env.items():
+                if name not in names and value.startswith(("mongodb://", "mongodb+srv://")):
+                    names.add(name)
+                    vref = uuid.uuid4().hex
+                    state.stdio_vars[vref] = (srv.settings_path, srv.app, srv.index, name)
+                    entry["vars"].append({"name": name, "ref": vref})
         stdio.append(entry)
-    return {"servers": servers, "apps": detect.find_app_servers(), "stdio": stdio}
+    # an address that is also a running server shows once, as the running server (it knows more)
+    running = {s["address"] for s in servers}
+    apps = [a for a in detect.find_app_servers() if a["address"] not in running]
+    return {"servers": servers, "apps": apps, "stdio": stdio}
 
 
 def _run_job(job: Job, params: dict) -> None:
@@ -128,8 +136,8 @@ def _run_job(job: Job, params: dict) -> None:
             config_path=config_path,
             role_label=params.get("role") or "the token",
             on_event=job.event,
-            stdio_servers=[params["stdio"]] if params.get("stdio") else None,
-            stdio_start=params["stdio"] if params.get("stdio") and params.get("stdio_start") else None,
+            stdio_servers=params.get("stdio") or None,
+            stdio_start=params["stdio"][0] if params.get("stdio") and params.get("stdio_start") else None,
         )
     except Exception as e:  # shown to the admin, never swallowed
         job.error = f"{e.__class__.__name__}: {e}"
@@ -323,11 +331,11 @@ def make_handler(state: State):
                 if body.get("db_ref"):
                     params["db_uri"] = state.secret(str(body["db_ref"]))
                 if body.get("stdio_ref"):
-                    srv = state.stdio_server(str(body["stdio_ref"]))   # only servers the detector found
-                    if not srv:
+                    group = state.stdio_group(str(body["stdio_ref"]))   # only servers the detector found
+                    if not group:
                         self._json(HTTPStatus.BAD_REQUEST, {"error": "that local program is no longer in its settings file"})
                         return
-                    params["stdio"] = srv
+                    params["stdio"] = group
                     params["stdio_start"] = body.get("stdio_start") is True
                 if not any(params.get(k) for k in ("mcp_url", "backend_url", "db_uri", "config_text", "stdio")):
                     # (db_ref was already resolved into db_uri above)

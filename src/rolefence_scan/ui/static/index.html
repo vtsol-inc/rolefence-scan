@@ -38,6 +38,10 @@
   .found .item span { flex: 1; min-width: 200px; }
   .found button { padding: 5px 10px; font-size: 14px; }
   .found code { font-size: 13px; }
+  .found .grp { font-weight: 600; font-size: 14px; color: var(--muted); margin: 10px 0 2px; }
+  .found .grp:first-child { margin-top: 0; }
+  .found details { margin-top: 10px; }
+  .found details summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 14px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
   @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
   details.hint { font-size: 15px; margin: -8px 0 14px; }
@@ -251,12 +255,21 @@
   let stdioSel = null;      // a local-program server the admin picked (no address; started only after the tick)
   async function loadDetected() {
     let d; try { d = await api("/api/detect"); } catch (e) { return; }
-    const items = [];
-    (d.servers || []).forEach((s, i) => items.push({ s, text: `<strong>${esc(s.label)}</strong> · <code>${esc(s.address)}</code>` + (s.config_path ? ` · config file found` : "") }));
-    (d.apps || []).forEach(a => items.push({ s: a, text: `${esc(a.label)} · <code>${esc(a.address)}</code>` }));
-    (d.stdio || []).forEach(a => items.push({ s: a, text: `${esc(a.app)}: <strong>${esc(a.name)}</strong> · runs as a local program <span class="small">(<code>${esc(a.program)}</code>)</span>` }));
+    // sorted from the settings alone: database first, then unknown; well-known tools folded away
+    const g = { database: [], unknown: [], tool: [] };
+    const known = (a) => a.known ? ` <span class="small">· ${esc(a.known)}</span>` : "";
+    (d.servers || []).forEach(s => g.database.push({ s, text: `<strong>${esc(s.label)}</strong> · <code>${esc(s.address)}</code>` + (s.config_path ? ` · config file found` : "") }));
+    (d.apps || []).forEach(a => (g[a.group] || g.unknown).push({ s: a, text: `${esc(a.label)} · <code>${esc(a.address)}</code>` + known(a) }));
+    (d.stdio || []).forEach(a => (g[a.group] || g.unknown).push({ s: a, text: `${esc(a.app)}: <strong>${esc(a.name)}</strong> · runs as a local program <span class="small">(<code>${esc(a.program)}</code>)</span>` + known(a) }));
+    const items = [...g.database, ...g.unknown, ...g.tool];
     if (!items.length) return;
-    $("found_list").innerHTML = items.map((it, i) => `<div class="item"><span>${it.text}</span><button data-i="${i}">Use this</button></div>`).join("");
+    let n = 0;
+    const rows = (list) => list.map(it => `<div class="item"><span>${it.text}</span><button data-i="${n++}">Use this</button></div>`).join("");
+    let html = "";
+    if (g.database.length) html += `<div class="grp">Talks to a database</div>` + rows(g.database);
+    if (g.unknown.length) html += `<div class="grp">Unknown: may reach your data, check it</div>` + rows(g.unknown);
+    if (g.tool.length) html += `<details><summary>${g.tool.length} other MCP server${g.tool.length === 1 ? "" : "s"} that do${g.tool.length === 1 ? "es" : ""} not look like ${g.tool.length === 1 ? "a database" : "databases"} — show</summary>` + rows(g.tool) + `</details>`;
+    $("found_list").innerHTML = html;
     $("found_list").querySelectorAll("button").forEach(b => b.onclick = () => { const s = items[+b.dataset.i].s; s.kind === "stdio" ? useStdio(s) : useDetected(s); });
     $("found").classList.remove("hidden");
   }

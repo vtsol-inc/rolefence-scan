@@ -7,6 +7,10 @@
 - local-program MCP servers in those same settings (`command` + `args` + `env`); only the app,
   the server's name, the program's base name and the settings file's path are shown
 
+Each app server is sorted into "database", "tool" (well-known, not a database) or "unknown"
+(see catalog.py), and the same server listed in several places is returned once, with the
+list of apps.
+
 Read-only; nothing is changed. Works on macOS and Linux; on other systems it finds nothing.
 """
 
@@ -22,6 +26,7 @@ from pathlib import Path
 
 import yaml
 
+from ..catalog import DATABASE, TOOL, UNKNOWN, classify
 from ..stdio import StdioServer, load_stdio_servers
 
 ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -185,9 +190,19 @@ def _urls_in_json(obj, out: list[tuple[str, str]], name: str = "") -> None:
             _urls_in_json(v, out, name)
 
 
+def app_name(app: str) -> str:
+    """'Claude Code (this folder)' and 'Claude Code' are one app in a list of apps."""
+    return app.replace(" (this folder)", "")
+
+
+def _add_app(apps: list[str], app: str) -> None:
+    if app_name(app) not in apps:
+        apps.append(app_name(app))
+
+
 def find_app_servers() -> list[dict]:
-    found: list[dict] = []
-    seen: set[str] = set()
+    """MCP servers with a web address, one row per address, with every app that lists it."""
+    by_url: dict[str, dict] = {}
     for app, path in _app_files():
         try:
             text = path.read_text(encoding="utf-8")
@@ -209,17 +224,38 @@ def find_app_servers() -> list[dict]:
                 if m and m.group(1).startswith(("http://", "https://")):
                     pairs.append((section, m.group(1)))
         for name, url in pairs:
-            if url in seen:
+            if url in by_url:
+                _add_app(by_url[url]["apps"], app)
                 continue
-            seen.add(url)
-            found.append({"kind": "app", "app": app, "name": name, "address": url,
-                          "label": f"{app}: {name or url}"})
+            group, known = classify(url=url)
+            by_url[url] = {"kind": "app", "apps": [app_name(app)], "name": name, "address": url,
+                           "group": group, "known": known}
+    found = []
+    for e in by_url.values():
+        e["app"] = ", ".join(e["apps"])
+        e["label"] = f"{e['app']}: {e['name'] or e['address']}"
+        found.append(e)
     return found
 
 
-def find_app_stdio_servers() -> list[StdioServer]:
-    """Local-program servers in the AI apps' settings. The caller must show only `.public()`."""
-    found: list[StdioServer] = []
+_RANK = {DATABASE: 0, UNKNOWN: 1, TOOL: 2}
+
+
+def find_app_stdio_groups() -> list[dict]:
+    """Local-program servers, one row per server (same name, program and arguments), with every
+    app and settings file that lists it: {"servers": [StdioServer, ...], "apps", "group", "known"}.
+    The caller must show only `.public()` of the servers."""
+    groups: dict[tuple, dict] = {}
     for app, path in _app_files():
-        found.extend(load_stdio_servers(path, app=app))
-    return found
+        for srv in load_stdio_servers(path, app=app):
+            key = (srv.name, srv.program, tuple(srv.args))
+            g = groups.setdefault(key, {"servers": [], "apps": []})
+            g["servers"].append(srv)
+            _add_app(g["apps"], app)
+    out = []
+    for g in groups.values():
+        # the most telling copy decides: a database login in any of them makes it a database server
+        g["group"], g["known"] = min((classify(command=s.command, args=s.args, env=s.env) for s in g["servers"]),
+                                     key=lambda r: _RANK[r[0]])
+        out.append(g)
+    return out

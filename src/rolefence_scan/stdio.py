@@ -39,6 +39,7 @@ class StdioServer:
     settings_path: str
     args: list[str] = field(default_factory=list, repr=False)
     env: dict[str, str] = field(default_factory=dict, repr=False)
+    index: int = 0           # position among the local-program servers of its settings file
 
     @property
     def program(self) -> str:
@@ -103,6 +104,7 @@ def load_stdio_servers(path: str | Path, app: str = "") -> list[StdioServer]:
         key = (s.name, s.command, tuple(s.args), tuple(sorted(s.env.items())))
         if key not in seen:
             seen.add(key)
+            s.index = len(unique)
             unique.append(s)
     return unique
 
