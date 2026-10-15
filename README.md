@@ -288,6 +288,12 @@ Yes, by design:
 - Secrets are never on the command line, so they do not end up in shell history or logs.
 - `reports/` and `*.report.json` are git-ignored, because a report can contain host names.
 
+## Where the checks come from
+
+[GAPS.md](GAPS.md) is the log of 29 things that did not hold when we built this setup and tried
+to break it, with the scanner check that catches each. The story version, for people who
+would rather read than scan, is [docs/what-a-model-can-reach.md](docs/what-a-model-can-reach.md).
+
 ## Questions or ideas
 
 Open an issue. If you found a gap the scanner missed, that is the most useful thing you can
