@@ -1,0 +1,129 @@
+# The GOVERNED demo setup WITH Toolbox's own login: governed.yaml plus an authService that
+# checks Keycloak tokens on every MCP request (mcpEnabled) and per-tool scopes. Run on port
+# 5012 so governed.yaml on 5011 stays as the "open" comparison.
+# This closes the "round the gateway" path on its own, but Toolbox still lists every tool to
+# every caller (it refuses at call time), so the gateway (demo/gateway/) is still wanted.
+#
+#   export DEMO_SALES_URI=... DEMO_FINANCE_URI=...   # as for governed.yaml
+#   toolbox --config demo/toolbox/governed_auth.yaml --port 5012
+authServices:
+  demo_keycloak:
+    kind: generic
+    # OIDC discovery and keys come from here; tokens must be issued by this realm.
+    authorizationServer: http://localhost:8080/realms/rolefence-demo
+    # Must be in the token's `aud` claim (the `toolbox-audience` mapper in demo/gateway/setup_keycloak.sh).
+    audience: toolbox
+    # Check the token on every MCP request, not only when a tool asks for a claim.
+    mcpEnabled: true
+
+sources:
+  demo_sales:
+    kind: mongodb
+    uri: ${DEMO_SALES_URI}
+  demo_finance:
+    kind: mongodb
+    uri: ${DEMO_FINANCE_URI}
+
+tools:
+  sales_enquiry_lookup:
+    kind: mongodb-find
+    source: demo_sales
+    description: Look up one enquiry by its reference, e.g. "ENQ-1042".
+    database: rolefence_demo
+    collection: enquiries
+    limit: 1
+    filterPayload: '{ "ref": {{json .ref}} }'
+    filterParams:
+      - name: ref
+        type: string
+        description: Enquiry reference, e.g. "ENQ-1042".
+    projectPayload: '{ "_id": 0, "ref": 1, "from_address": 1, "to_address": 1, "move_date": 1, "rooms": 1, "quoted_price": 1, "status": 1, "created_at": 1 }'
+    authRequired:
+      - demo_keycloak
+    scopesRequired:
+      - demo:sales
+  sales_enquiries_by_status:
+    kind: mongodb-aggregate
+    source: demo_sales
+    description: Count enquiries per status code for one month (YYYY-MM).
+    database: rolefence_demo
+    collection: enquiries
+    readOnly: true
+    pipelinePayload: |
+      [ { "$match": { "move_date": { "$regex": {{json .month}} } } },
+        { "$group": { "_id": "$status", "count": { "$sum": 1 } } },
+        { "$sort": { "_id": 1 } },
+        { "$limit": 20 } ]
+    pipelineParams:
+      - name: month
+        type: string
+        description: Month as YYYY-MM, e.g. "2025-06".
+    authRequired:
+      - demo_keycloak
+    scopesRequired:
+      - demo:sales
+  sales_order_lookup:
+    kind: mongodb-find
+    source: demo_sales
+    description: Look up one order by its reference, e.g. "ORD-5021". Price only, no supplier cost.
+    database: rolefence_demo
+    collection: orders_sales
+    limit: 1
+    filterPayload: '{ "ref": {{json .ref}} }'
+    filterParams:
+      - name: ref
+        type: string
+        description: Order reference, e.g. "ORD-5021".
+    projectPayload: '{ "_id": 0, "ref": 1, "price": 1, "status": 1, "move_date": 1 }'
+    authRequired:
+      - demo_keycloak
+    scopesRequired:
+      - demo:sales
+  finance_order_margin:
+    kind: mongodb-find
+    source: demo_finance
+    description: One order with price, supplier cost and margin.
+    database: rolefence_demo
+    collection: orders
+    limit: 1
+    filterPayload: '{ "ref": {{json .ref}} }'
+    filterParams:
+      - name: ref
+        type: string
+        description: Order reference, e.g. "ORD-5021".
+    projectPayload: '{ "_id": 0, "ref": 1, "price": 1, "supplier_cost": 1, "status": 1 }'
+    authRequired:
+      - demo_keycloak
+    scopesRequired:
+      - demo:finance
+  finance_supplier_payments:
+    kind: mongodb-aggregate
+    source: demo_finance
+    description: Total paid to each supplier in one month (YYYY-MM).
+    database: rolefence_demo
+    collection: supplier_payments
+    readOnly: true
+    pipelinePayload: |
+      [ { "$group": { "_id": "$supplier_id", "paid": { "$sum": "$amount" }, "payments": { "$sum": 1 } } },
+        { "$sort": { "paid": -1 } },
+        { "$limit": 20 } ]
+    pipelineParams:
+      - name: month
+        type: string
+        description: Month as YYYY-MM (reserved; not yet applied).
+    authRequired:
+      - demo_keycloak
+    scopesRequired:
+      - demo:finance
+
+toolsets:
+  sales:
+    - sales_enquiry_lookup
+    - sales_enquiries_by_status
+    - sales_order_lookup
+  finance:
+    - sales_enquiry_lookup
+    - sales_enquiries_by_status
+    - sales_order_lookup
+    - finance_order_margin
+    - finance_supplier_payments

@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+# The GOOD gateway for the demo: agentgateway on port 3011 in front of the login-protected
+# Toolbox (demo/toolbox/governed_auth.yaml on 5012). Keycloak checks who you are, the
+# gateway hides tools by role, and `backendAuth: passthrough` forwards the token so Toolbox
+# checks it again (per-tool scopes). Two locks.
+#
+#   bin/agentgateway -f demo/gateway/gateway_good.yaml      # (or wherever the binary lives)
+#   rolefence-scan --mcp http://127.0.0.1:3011/mcp --token-env DEMO_SALES_TOKEN --role sales \
+#                  --backend http://127.0.0.1:5012/mcp --config demo/toolbox/governed_auth.yaml
+config:
+  adminAddr: 127.0.0.1:15011
+  statsAddr: 127.0.0.1:15012
+  readinessAddr: 127.0.0.1:15013
+mcp:
+  port: 3011
+  policies:
+    mcpAuthentication:
+      mode: strict
+      # Must equal the token's `iss` claim exactly.
+      issuer: http://localhost:8080/realms/rolefence-demo
+      # Put there by the `agentgateway-audience` mapper in setup_keycloak.sh.
+      audiences:
+      - agentgateway
+      provider:
+        keycloak: {}
+      # Tells MCP clients where to log in and which scopes to ask for.
+      resourceMetadata:
+        resource: http://localhost:3011/mcp
+        scopesSupported:
+        - openid
+        - demo:sales
+        - demo:finance
+        bearerMethodsSupported:
+        - header
+    mcpAuthorization:
+      rules:
+      # Keycloak puts realm roles in `realm_access.roles`. sales: only sales_* tools; finance: all.
+      - '"sales" in jwt.realm_access.roles && mcp.tool.name.startsWith("sales_")'
+      - '"finance" in jwt.realm_access.roles'
+  targets:
+  - name: toolbox
+    mcp:
+      host: http://127.0.0.1:5012/mcp
+    policies:
+      # Forward the caller's token; without this the gateway strips it and Toolbox sees no login.
+      backendAuth:
+        passthrough: {}

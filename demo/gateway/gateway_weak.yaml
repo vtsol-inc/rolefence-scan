@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+# The WEAK gateway for the demo: the same login and role rules as gateway_good.yaml, on port
+# 3012, but WITHOUT `backendAuth: passthrough` (agentgateway's default) and without the
+# scope list in the resource metadata. The gateway checks the token, then drops it, so the
+# login-protected Toolbox behind it (5012) refuses every call with a bare 401. The scanner
+# should report "token refused" and "scopes not advertised". With the open governed Toolbox
+# (5011) as --backend it also reports "round the gateway".
+#
+#   bin/agentgateway -f demo/gateway/gateway_weak.yaml
+#   rolefence-scan --mcp http://127.0.0.1:3012/mcp --token-env DEMO_SALES_TOKEN --role sales \
+#                  --backend http://127.0.0.1:5011/mcp
+config:
+  adminAddr: 127.0.0.1:15021
+  statsAddr: 127.0.0.1:15022
+  readinessAddr: 127.0.0.1:15023
+mcp:
+  port: 3012
+  policies:
+    mcpAuthentication:
+      mode: strict
+      issuer: http://localhost:8080/realms/rolefence-demo
+      audiences:
+      - agentgateway
+      provider:
+        keycloak: {}
+      resourceMetadata:
+        resource: http://localhost:3012/mcp
+        bearerMethodsSupported:
+        - header
+    mcpAuthorization:
+      rules:
+      - '"sales" in jwt.realm_access.roles && mcp.tool.name.startsWith("sales_")'
+      - '"finance" in jwt.realm_access.roles'
+  targets:
+  - name: toolbox
+    mcp:
+      host: http://127.0.0.1:5012/mcp
+    # no backendAuth: the token stops here

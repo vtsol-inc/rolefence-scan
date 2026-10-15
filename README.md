@@ -65,9 +65,9 @@ Codex or any MCP client, set the environment variables in the shell that starts 
 
 ## Try it on the demo
 
-`demo/` holds a made-up removals company, Brightline Movers, with two setups: `weak.yaml`
-(one over-powered user, free-form tools, no login) and `governed.yaml` (fixed questions, one
-user per role, projections). Everything in it is invented.
+`demo/` holds a made-up removals company, Brightline Movers, with two Toolbox setups:
+`weak.yaml` (one over-powered user, free-form tools, no login) and `governed.yaml` (fixed
+questions, one user per role, projections). Everything in it is invented.
 
 ```bash
 export DEMO_ADMIN_URI='mongodb://<admin>:<pw>@127.0.0.1:27017/admin'
@@ -78,6 +78,47 @@ rolefence-scan --mcp http://127.0.0.1:5010/mcp --db-env DEMO_RW_URI --config dem
 ```
 
 The weak setup should produce several high findings; the governed one far fewer.
+
+### With a login and a gateway
+
+`demo/gateway/` adds the identity side: a Keycloak realm (`rolefence-demo`, roles `sales` and
+`finance`, scopes `demo:sales` / `demo:finance`), a third Toolbox config with Toolbox's own
+login (`demo/toolbox/governed_auth.yaml`, port 5012), and two [agentgateway](https://agentgateway.dev)
+configs in front of it: `gateway_good.yaml` (port 3011, passes the token on) and
+`gateway_weak.yaml` (port 3012, drops it, which is agentgateway's default). Passwords are typed
+into the terminal, never written to a file; `get_token.sh` fetches a token into a variable and
+prints only who it is for.
+
+```bash
+# 1. Keycloak (Docker) and the demo realm
+docker run -d --name keycloak -p 127.0.0.1:8080:8080 -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+  -e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_ADMIN_PW" quay.io/keycloak/keycloak:26.7.1 start-dev
+export KC_ADMIN_PW DEMO_SALES_USER_PW DEMO_FINANCE_USER_PW   # typed with read -s, see the script header
+demo/gateway/setup_keycloak.sh
+
+# 2. Toolbox with its own login (needs DEMO_SALES_URI / DEMO_FINANCE_URI as for governed.yaml)
+toolbox --config demo/toolbox/governed_auth.yaml --port 5012
+
+# 3. The two gateways (binary from https://github.com/agentgateway/agentgateway/releases)
+agentgateway -f demo/gateway/gateway_good.yaml &
+agentgateway -f demo/gateway/gateway_weak.yaml &
+
+# 4. A sales token, then scan
+source demo/gateway/get_token.sh sales                        # sets DEMO_SALES_TOKEN
+rolefence-scan --mcp http://127.0.0.1:3011/mcp --token-env DEMO_SALES_TOKEN --role sales \
+               --backend http://127.0.0.1:5012/mcp --config demo/toolbox/governed_auth.yaml
+rolefence-scan --mcp http://127.0.0.1:3012/mcp --token-env DEMO_SALES_TOKEN --role sales \
+               --backend http://127.0.0.1:5011/mcp
+rolefence-scan --mcp http://127.0.0.1:5012/mcp --token-env DEMO_SALES_TOKEN --role sales
+```
+
+What each run shows:
+
+| Target | Expected |
+|--------|----------|
+| Good gateway (3011) | Token accepted, sales sees only `sales_*` tools, scopes advertised, backend 5012 refuses direct calls. Only "listening everywhere" remains (the gateway has no bind setting). |
+| Weak gateway (3012) | **Token refused**: the gateway checks the token, then drops it, so Toolbox answers 401. **Scopes not advertised.** With the open governed Toolbox (5011) as backend: **round the gateway**. |
+| Toolbox alone (5012) | Login holds, but **the tool list is not filtered**: sales is shown the finance tools and refused when it calls them. No resource metadata. |
 
 ## Not in this version
 
