@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.DS_Store
+# scan output and wizard answers may hold host names; keep them out of the repo
+reports/
+*.report.json
+# never commit anything that could hold a connection string or token
+.env
+*.env

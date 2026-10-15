@@ -1,0 +1,98 @@
+# The WEAK demo setup: what a first attempt usually looks like.
+# One over-powered DB user, broad find/aggregate tools, no projection, no row cap on aggregate,
+# no login, and every tool served on /mcp. The scanner should light up on this.
+#
+#   export DEMO_RW_URI='mongodb://demo_rw:<pw>@127.0.0.1:27017/rolefence_demo?authSource=rolefence_demo'
+#   toolbox --config demo/toolbox/weak.yaml --port 5010
+sources:
+  demo:
+    kind: mongodb
+    uri: ${DEMO_RW_URI}
+
+tools:
+  find_customers:
+    kind: mongodb-find
+    source: demo
+    description: Find customers by any filter.
+    database: rolefence_demo
+    collection: customers
+    filterPayload: "{{json .filter}}"
+    filterParams:
+      - name: filter
+        type: map
+        description: MongoDB filter document.
+    limit: 20
+  find_enquiries:
+    kind: mongodb-find
+    source: demo
+    description: Find enquiries by any filter.
+    database: rolefence_demo
+    collection: enquiries
+    filterPayload: "{{json .filter}}"
+    filterParams:
+      - name: filter
+        type: map
+        description: MongoDB filter document.
+    limit: 20
+  find_orders:
+    kind: mongodb-find
+    source: demo
+    description: Find orders by any filter.
+    database: rolefence_demo
+    collection: orders
+    filterPayload: "{{json .filter}}"
+    filterParams:
+      - name: filter
+        type: map
+        description: MongoDB filter document.
+    limit: 20
+  aggregate_orders:
+    kind: mongodb-aggregate
+    source: demo
+    description: Run any aggregation pipeline on orders.
+    database: rolefence_demo
+    collection: orders
+    pipelinePayload: "{{json .pipeline}}"
+    pipelineParams:
+      - name: pipeline
+        type: array
+        description: Aggregation pipeline stages.
+        items:
+          name: stage
+          type: map
+          description: One pipeline stage.
+  aggregate_enquiries:
+    kind: mongodb-aggregate
+    source: demo
+    description: Run any aggregation pipeline on enquiries.
+    database: rolefence_demo
+    collection: enquiries
+    pipelinePayload: "{{json .pipeline}}"
+    pipelineParams:
+      - name: pipeline
+        type: array
+        description: Aggregation pipeline stages.
+        items:
+          name: stage
+          type: map
+          description: One pipeline stage.
+  insert_enquiry:
+    kind: mongodb-insert-one
+    source: demo
+    description: Add an enquiry.
+    database: rolefence_demo
+    collection: enquiries
+    canonical: false
+
+toolsets:
+  sales:
+    - find_customers
+    - find_enquiries
+    - aggregate_enquiries
+  finance:
+    - find_customers
+    - find_enquiries
+    - find_orders
+    - aggregate_orders
+    - aggregate_enquiries
+    - insert_enquiry
