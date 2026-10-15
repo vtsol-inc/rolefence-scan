@@ -263,7 +263,9 @@ What each run shows:
 |--------|----------|
 | Good gateway (3011) | Token accepted, sales sees only `sales_*` tools, scopes advertised, backend 5012 refuses direct calls. Only "listening everywhere" remains (the gateway has no bind setting). |
 | Weak gateway (3012) | **Token refused**: the gateway checks the token, then drops it, so Toolbox answers 401. **Scopes not advertised.** With the open governed Toolbox (5011) as backend: **round the gateway**. |
-| Toolbox alone (5012) | Login holds, but **the tool list is not filtered**: sales is shown the finance tools and refused when it calls them. No resource metadata. |
+| Toolbox alone (5012) | Login holds, but **the tool list is not filtered**: sales is shown 5 tools and refused on the 2 finance ones. Scopes not advertised. |
+
+All three were run live on 15 Oct 2026 with `demo/gateway/run_live.sh` and matched this table.
 
 ## What it does not do yet
 
