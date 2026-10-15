@@ -1,7 +1,9 @@
 """Generate the demo dataset: a made-up removals company, "Brightline Movers".
 
 Everything here is invented. Names, emails, phones, addresses and amounts are built from
-word lists with a fixed random seed, so the dataset is the same on every machine.
+word lists with a fixed random seed, so the dataset is the same on every machine. Emails use
+example.net, phones Ofcom's drama range (+44 7700 900xxx) and bank refs a fake bank code
+(GB00TEST...), so none can belong to a real person or account.
 
 Usage (admin connection string from an environment variable, never a flag):
 
@@ -65,8 +67,21 @@ def person():
     return {
         "name": f"{f} {l}",
         "email": f"{f.lower()}.{l.lower()}{rng.randint(1, 999)}@example.net",
-        "phone": f"+44 7{rng.randint(100, 999)} {rng.randint(100000, 999999)}",
+        "phone": fake_phone(),
     }
+
+
+def fake_phone():
+    # Ofcom's range for drama (07700 900000-900999): never a real number. Two draws as
+    # before, so the rest of the dataset does not change.
+    rng.randint(100, 999)
+    return f"+44 7700 900{rng.randint(100000, 999999) % 1000:03d}"
+
+
+def fake_bank_ref():
+    # Check digits 00 and bank code TEST: not a valid IBAN, cannot be anyone's account.
+    rng.randint(10, 99)
+    return f"GB00TEST{rng.randint(10**13, 10**14 - 1)}"
 
 
 def address():
@@ -144,7 +159,7 @@ def build(scale: float):
             if ostatus in (3, 4):
                 supplier_payments.append({"order_id": order_no, "supplier_id": sup["_id"],
                                           "amount": cost,
-                                          "bank_ref": f"GB{rng.randint(10, 99)}BRIT{rng.randint(10**13, 10**14 - 1)}",
+                                          "bank_ref": fake_bank_ref(),
                                           "paid_at": when(order["created_at"], 20)})
             messages.append({"customer_id": c["_id"], "enquiry_id": enq["_id"], "direction": "out",
                              "channel": "email", "sent_at": order["created_at"],
