@@ -61,6 +61,12 @@ an optional database connection, an optional config file, then a review and the 
 appears as it finishes; the findings are shown as cards you can download as an HTML or JSON
 report. Tokens and connection strings are kept in memory for that one run and never saved.
 
+Not sure where to find the address, the connection string or the config file? Each step has a
+"Where do I find it?" link. In short: the address is in your AI app's MCP settings (for Claude
+Code, `.mcp.json`; for Claude Desktop, Settings → Developer → Edit Config); the config file
+(`tools.yaml`) and the connection string live on the machine where the MCP server runs, so ask
+whoever set it up. Everything but the address is optional.
+
 ### 2b. Or the command line
 
 The simplest run: just the address your AI assistant is configured with.

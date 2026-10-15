@@ -32,6 +32,10 @@
                     border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
   textarea { min-height: 140px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
   .small { font-size: 14px; color: var(--muted); margin-top: 6px; }
+  details.hint { font-size: 15px; margin: -8px 0 14px; }
+  details.hint summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+  details.hint ul { margin: 8px 0 0; padding-left: 20px; }
+  details.hint li { margin: 4px 0; }
   .row { display: flex; gap: 10px; align-items: center; margin-top: 20px; flex-wrap: wrap; }
   button { font: inherit; font-weight: 600; border-radius: 8px; padding: 10px 16px; cursor: pointer;
            border: 1px solid var(--line); background: var(--card); color: var(--text); }
@@ -80,6 +84,14 @@
   <section class="card" id="s1">
     <h2>1. Where is your AI's server?</h2>
     <p class="hint">The address your AI assistant is set up with. It usually ends in <code>/mcp</code>. If a gateway sits in front, give the gateway's address here.</p>
+    <details class="hint"><summary>Where do I find it?</summary>
+      <ul>
+        <li><strong>Claude Code:</strong> the <code>.mcp.json</code> file in the project folder, or <code>~/.claude.json</code>: look for <code>"url"</code>.</li>
+        <li><strong>Claude Desktop:</strong> Settings → Developer → Edit Config (<code>claude_desktop_config.json</code>).</li>
+        <li><strong>Cursor, Codex, other apps:</strong> their MCP settings page or config file; the entry has a name and a URL.</li>
+        <li>Or ask whoever set the AI up: "what address does the AI use to reach our data?"</li>
+      </ul>
+    </details>
     <label for="mcp_url">Server address</label>
     <input id="mcp_url" type="url" placeholder="http://127.0.0.1:3001/mcp" autocomplete="off" spellcheck="false">
     <div id="test_note"></div>
@@ -108,6 +120,13 @@
   <section class="card hidden" id="s3">
     <h2>3. Database connection</h2>
     <p class="hint">Optional. The connection string your MCP server uses to reach MongoDB. With it the scanner can check whether that user can write, run code inside the database, or read other collections. It only reads.</p>
+    <details class="hint"><summary>Where do I find it?</summary>
+      <ul>
+        <li>It starts with <code>mongodb://</code> and is set as an environment variable where the MCP server runs (the config file above names the variable, e.g. <code>${DB_URI}</code>).</li>
+        <li>Ask whoever runs the server for "the connection string the MCP server uses". Use that exact user, not an admin login: the point is to test what the AI's user can do.</li>
+        <li>No connection string? Skip this step.</li>
+      </ul>
+    </details>
     <label for="db_uri">Connection string</label>
     <input id="db_uri" type="password" autocomplete="off" placeholder="mongodb://user:password@host:27017/db?authSource=db">
     <div class="small">Kept in memory for this run only. Never saved, never sent anywhere.</div>
@@ -117,7 +136,15 @@
   <!-- Step 4: config -->
   <section class="card hidden" id="s4">
     <h2>4. The server's config file</h2>
-    <p class="hint">Optional. Drop or paste the MCP Toolbox <code>tools.yaml</code>. The scanner reads how each tool is written: write tools, free-form queries, missing row caps, whole records.</p>
+    <p class="hint">Optional. The MCP server that connects your AI to the database is set up by one text file that lists every question the AI may ask. If you can get that file, the scanner reads how each question is written: write tools, free-form queries, missing row caps, whole records.</p>
+    <details class="hint"><summary>Where do I find it?</summary>
+      <ul>
+        <li>It is a <code>.yaml</code> file, usually called <code>tools.yaml</code>, on the machine where the MCP server runs (the server is started with <code>toolbox --config tools.yaml</code> or similar).</li>
+        <li>Whoever set up the AI connection has it; ask for "the Toolbox config file".</li>
+        <li>Open it in any text editor, copy everything, and paste it below. Passwords are not in it; they come from environment variables.</li>
+        <li>No file to hand? Skip this step. The other checks still run.</li>
+      </ul>
+    </details>
     <label for="config_file">Choose the file</label>
     <input id="config_file" type="file" accept=".yaml,.yml,text/yaml">
     <label for="config_text">Or paste it</label>
