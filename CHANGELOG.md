@@ -21,6 +21,10 @@
 - Wizard: a server listed in several places shows once, with the apps that list it; scanning
   it checks every copy's settings. An address that is also a running server shows once.
 - `GAPS.md` row 30: the database login in plain text in an AI app's settings file.
+- Fix: a database user that can read every collection was reported as "Cross-collection
+  reach is contained" (low) when the only refusal was `system.views`, which is refused even
+  for such users. It is now reported as "A tool's collection is not a boundary" (medium), and
+  the "contained" message no longer prints an empty list.
 
 ## 0.1.1 (15 Oct 2026)
 

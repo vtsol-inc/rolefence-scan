@@ -85,7 +85,25 @@ places to keep in step.
 None of these is a break-in on its own. Together they tell an outsider what your servers are
 called, how big your data is, and what shape your queries take.
 
-## Finding 5: the things no scanner can see
+## Finding 5: the commonest setup skips every layer above
+
+Everything so far assumes the MCP server runs somewhere with an address, behind a gateway.
+Most people do not set it up that way. They add a few lines to their AI app's settings file:
+a command to run, and the database login to give it. The app starts the MCP server as a
+program on the person's own computer and talks to it directly.
+
+That setup has no gateway, no login and no roles: whoever uses that computer's AI app can use
+every tool. And the database login, password included, sits in plain text in the settings
+file, often for a database on another computer. Anything that can read that one file has the
+login, with nothing in between.
+
+What holds: give the AI a read-only database user of its own, with only the collections it
+needs, and keep the password out of the settings file (the operating system's keychain or a
+secrets manager). The scanner finds these programs in the settings of Claude Code, Claude
+Desktop, Cursor and Codex, warns about logins written there in plain text without ever showing
+them, and can ask each program for its tool list without running any tool.
+
+## Finding 6: the things no scanner can see
 
 Three of the gaps that cost us the most time cannot be found from outside:
 
@@ -111,14 +129,15 @@ uvx rolefence-scan ui          # a step-by-step page in your browser
 or, with an assistant that speaks MCP, register it and ask: *"scan my MCP server as the sales
 role"*.
 
-Point it at the address your assistant uses. Give it, if you have them, a token for one role,
+Point it at the address your assistant uses, or let it find the MCP servers your AI apps
+start on this computer. Give it, if you have them, a token for one role,
 the server's own address behind the gateway, the database login the server uses, and the
 server's config file. Each one unlocks more checks. On the demo company that ships with it,
 the first-attempt setup gets 11 findings; the governed one gets 4; the governed one behind a
 properly configured gateway gets 1 (the network interface, which agentgateway cannot yet
 change).
 
-The full gap log, 29 rows, is in [GAPS.md](../GAPS.md).
+The full gap log, 30 rows, is in [GAPS.md](../GAPS.md).
 
 ## What we are building next
 
