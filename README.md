@@ -219,6 +219,30 @@ rolefence-scan report for http://127.0.0.1:5010/mcp/sales
 The same company, set up properly (one read-only user per role, fixed questions, a login in
 front), gets 4 findings instead of 11, and the scanner says which ones remain.
 
+### NIST AI RMF
+
+Risk and audit teams often work from the [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
+(AI RMF 1.0, NIST AI 100-1, and its Generative AI Profile, NIST AI 600-1). Every report shows
+which of its items the scan gives evidence for:
+
+- each finding has an `AI RMF:` line, for example `MEASURE 2.7, MEASURE 2.10, MANAGE 1.3`;
+- at the end, one row per item with what this scan showed and a status: **Evidence**,
+  **Gaps to fix**, or **Not checked in this scan** (the checks for it did not run this time),
+  plus a fixed row for what this tool does not cover at all: accuracy, bias and model testing.
+
+```
+  MEASURE 2.10 Privacy: personal and secret data the AI can reach
+               Status: Gaps to fix
+               What this scan showed: 3 finding(s) to fix: Tools accept any query from the model; ...
+```
+
+The items used are GOVERN 1.6, GOVERN 6.1, MEASURE 2.7, MEASURE 2.8, MEASURE 2.10, MANAGE 1.3,
+MANAGE 3.1 and MANAGE 4.1. The AI RMF is voluntary guidance and has no certification: the
+report gives evidence for its data-access parts and does not certify compliance. The JSON report
+has the same in `ai_rmf` (per finding and a `summary`). Which check counts towards which item is
+one data file, [`src/rolefence_scan/data/ai_rmf.json`](src/rolefence_scan/data/ai_rmf.json);
+corrections are welcome.
+
 ## Examples
 
 **"Our sales team's AI must never see supplier cost."**

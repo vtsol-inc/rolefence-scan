@@ -80,6 +80,11 @@
         border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   footer { color: var(--muted); font-size: 14px; margin-top: 28px; }
+  .rmf { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .rmf th, .rmf td { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  .rmf th { color: var(--muted); font-size: 13px; font-weight: 600; }
+  .rmf .st { font-weight: 600; white-space: nowrap; } .rmf .st.gap { color: #d92d20; } .rmf .st.ev { color: #079455; }
+  @media (max-width: 520px) { .rmf td, .rmf th { display: block; border: 0; padding: 2px 0; } .rmf tr { display: block; border-bottom: 1px solid var(--line); padding: 8px 0; } .rmf tr:first-child { display: none; } }
   @media (max-width: 520px) { .finding dl { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -221,6 +226,7 @@
     </div>
     <div id="findings"></div>
     <div class="card" id="passed_card"></div>
+    <div class="card" id="rmf_card" style="margin-top:12px"></div>
   </section>
 
   <footer>Read-only by design. The report never contains data values, only names and counts. Part of <a href="https://rolefence.com">RoleFence</a>.</footer>
@@ -431,6 +437,8 @@
   async function showResults(job, st) {
     const full = await (await fetch(`/api/report.json?job=${job}`, { headers: { "X-RF-Token": TOKEN } })).json();
     const f = full.findings; const counts = {};
+    const rmf = full.ai_rmf || { summary: [] }; const rmfLabel = {};
+    rmf.summary.forEach(r => rmfLabel[r.id] = r.label);
     f.forEach(x => counts[x.severity] = (counts[x.severity] || 0) + 1);
     $("sum_line").textContent = f.length ? `${f.length} finding${f.length === 1 ? "" : "s"} for ${full.target}` : `No problems found for ${full.target}`;
     $("sum_pills").innerHTML = ["high", "medium", "low", "info"].filter(s => counts[s]).map(s => `<span class="pill sev ${s}">${counts[s]} ${s}</span>`).join("")
@@ -442,10 +450,16 @@
             <dt>Why it matters</dt><dd>${esc(x.why)}</dd>
             <dt>How to close it</dt><dd>${esc(x.fix)}</dd>
             ${Object.keys(x.evidence || {}).length ? `<dt>Details</dt><dd><code>${esc(JSON.stringify(x.evidence))}</code></dd>` : ""}
+            ${(x.ai_rmf || []).length ? `<dt>AI RMF</dt><dd>${x.ai_rmf.map(t => `<span title="${esc(rmfLabel[t] || "")}">${esc(t)}</span>`).join(", ")}</dd>` : ""}
         </dl></div>`).join("");
     $("passed_card").innerHTML = (full.passed.length ? `<p><strong>Checks that passed:</strong> ${esc(full.passed.map(c => LABELS[c] || c).join(", "))}</p>` : "")
       + (full.skipped.length ? `<p><strong>Could not run:</strong></p><ul>${full.skipped.map(s => `<li>${esc(s)}</li>`).join("")}</ul>` : "")
       + ((full.not_applicable || []).length ? `<p><strong>Do not apply here:</strong></p><ul>${full.not_applicable.map(s => `<li>${esc(s)}</li>`).join("")}</ul>` : "");
+    $("rmf_card").innerHTML = `<h3 style="margin:0 0 4px">NIST AI RMF: what this scan gives evidence for</h3><p class="hint">${esc(rmf.disclaimer || "")}</p>`
+      + `<table class="rmf"><tr><th>AI RMF item</th><th>What this scan showed</th><th>Status</th></tr>`
+      + rmf.summary.map(r => `<tr><td><strong>${esc(r.id)}</strong><br><span class="small">${esc(r.label)}</span></td><td>${esc(r.showed)}</td>`
+        + `<td class="st ${r.status === "Gaps to fix" ? "gap" : r.status === "Evidence" ? "ev" : ""}">${esc(r.status)}</td></tr>`).join("") + `</table>`;
+    $("rmf_card").classList.toggle("hidden", !rmf.summary.length);
     $("passed_card").classList.toggle("hidden", !full.passed.length && !full.skipped.length && !(full.not_applicable || []).length);
     $("dl_html").onclick = (e) => { e.preventDefault(); download(`/api/report.html?job=${job}`, "rolefence-scan-report.html"); };
     $("dl_json").onclick = (e) => { e.preventDefault(); download(`/api/report.json?job=${job}`, "rolefence-scan-report.json"); };

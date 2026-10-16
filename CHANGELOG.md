@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- NIST AI RMF section in every report (text, HTML download, JSON and the wizard's result
+  cards): each finding has an "AI RMF:" line with the subcategories it gives evidence for, and
+  a summary at the end has one row per subcategory (GOVERN 1.6, GOVERN 6.1, MEASURE 2.7,
+  MEASURE 2.8, MEASURE 2.10, MANAGE 1.3, MANAGE 3.1, MANAGE 4.1) with what the scan showed and
+  a status: Evidence, Gaps to fix, or Not checked in this scan. A fixed row says accuracy,
+  bias and model testing are not covered by this tool. A fixed line says the report gives
+  evidence and does not certify compliance. Numbers and wording checked against NIST AI 100-1
+  and NIST AI 600-1.
+- The mapping is one data file, `src/rolefence_scan/data/ai_rmf.json`. JSON reports have a new
+  `ai_rmf` list on each finding and an `ai_rmf` block (source, disclaimer, summary).
+
 ## 0.1.2 (15 Oct 2026)
 
 - Local-program ("stdio") MCP servers: the ones an AI app starts from its settings file

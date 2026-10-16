@@ -1,0 +1,96 @@
+{
+  "_about": "Which NIST AI RMF subcategories each check gives evidence for. Numbers and official wording checked on 16 Oct 2026 against NIST AI 100-1 (AI RMF 1.0, Jan 2023) and NIST AI 600-1 (Generative AI Profile, Jul 2024). 'checks' maps a finding id or a passed-check name to subcategory ids. 'by_severity' adds subcategories to every finding of that severity. 'every_report' lists subcategories that every report gives evidence for; 'showed' is the text shown for them ({target} and {started_at} are filled in). 'gai_risks' are the matching risk names in NIST AI 600-1. To correct the mapping, edit this file only; see README, 'NIST AI RMF'.",
+  "source": "NIST AI 100-1 (AI RMF 1.0) and NIST AI 600-1 (Generative AI Profile)",
+  "disclaimer": "This report gives evidence for the data-access parts of the NIST AI RMF; it does not certify compliance. The AI RMF is voluntary guidance and has no certification.",
+  "subcategories": [
+    {
+      "id": "GOVERN 1.6",
+      "label": "Keep a list of your AI systems",
+      "official": "Mechanisms are in place to inventory AI systems and are resourced according to organizational risk priorities.",
+      "gai_risks": ["Information Security", "Value Chain and Component Integration"]
+    },
+    {
+      "id": "GOVERN 6.1",
+      "label": "Have rules for risks from outside suppliers' software",
+      "official": "Policies and procedures are in place that address AI risks associated with third-party entities, including risks of infringement of a third-party's intellectual property or other rights.",
+      "gai_risks": ["Value Chain and Component Integration", "Data Privacy"]
+    },
+    {
+      "id": "MEASURE 2.7",
+      "label": "Security: can the AI's access to data be misused",
+      "official": "AI system security and resilience - as identified in the MAP function - are evaluated and documented.",
+      "gai_risks": ["Information Security"]
+    },
+    {
+      "id": "MEASURE 2.8",
+      "label": "Accountability: a login, and knowing who asked for what",
+      "official": "Risks associated with transparency and accountability - as identified in the MAP function - are examined and documented.",
+      "gai_risks": ["Information Security"]
+    },
+    {
+      "id": "MEASURE 2.10",
+      "label": "Privacy: personal and secret data the AI can reach",
+      "official": "Privacy risk of the AI system - as identified in the MAP function - is examined and documented.",
+      "gai_risks": ["Data Privacy"]
+    },
+    {
+      "id": "MANAGE 1.3",
+      "label": "Plan a response to each high risk",
+      "official": "Responses to the AI risks deemed high priority, as identified by the MAP function, are developed, planned, and documented. Risk response options can include mitigating, transferring, avoiding, or accepting.",
+      "gai_risks": ["Information Security"]
+    },
+    {
+      "id": "MANAGE 3.1",
+      "label": "Keep an eye on outside suppliers' software and control it",
+      "official": "AI risks and benefits from third-party resources are regularly monitored, and risk controls are applied and documented.",
+      "gai_risks": ["Value Chain and Component Integration", "Information Security"]
+    },
+    {
+      "id": "MANAGE 4.1",
+      "label": "Keep checking after go-live",
+      "official": "Post-deployment AI system monitoring plans are implemented, including mechanisms for capturing and evaluating input from users and other relevant AI actors, appeal and override, decommissioning, incident response, recovery, and change management.",
+      "gai_risks": ["Information Security"]
+    }
+  ],
+  "every_report": {
+    "GOVERN 1.6": "Records one AI connection to data ({target}) and what it can reach, for your list of AI systems. The wizard's \"Found on this computer\" lists the others on this machine.",
+    "MANAGE 4.1": "A dated check (run at {started_at}) that can be run again the same way to spot changes after go-live."
+  },
+  "by_severity": {
+    "high": ["MANAGE 1.3"]
+  },
+  "checks": {
+    "open-tool-list":             ["MEASURE 2.7", "MEASURE 2.8", "MEASURE 2.10"],
+    "round-the-gateway":          ["MEASURE 2.7", "MEASURE 2.8", "MEASURE 2.10"],
+    "token-refused":              ["MEASURE 2.8", "GOVERN 6.1", "MANAGE 3.1"],
+    "tool-list-not-filtered":     ["MEASURE 2.8", "MEASURE 2.10", "GOVERN 6.1", "MANAGE 3.1"],
+    "tool-list-filtered":         ["MEASURE 2.8", "MEASURE 2.10", "GOVERN 6.1", "MANAGE 3.1"],
+    "scopes-not-advertised":      ["MEASURE 2.8", "GOVERN 6.1", "MANAGE 3.1"],
+    "no-resource-metadata":       ["MEASURE 2.8", "GOVERN 6.1", "MANAGE 3.1"],
+    "scopes-advertised":          ["MEASURE 2.8", "GOVERN 6.1", "MANAGE 3.1"],
+    "default-toolset":            ["MEASURE 2.7", "MEASURE 2.10", "GOVERN 6.1", "MANAGE 3.1"],
+    "listening-everywhere":       ["MEASURE 2.7"],
+    "write-tools":                ["MEASURE 2.7"],
+    "free-form-queries":          ["MEASURE 2.7", "MEASURE 2.10"],
+    "aggregate-not-readonly":     ["MEASURE 2.7", "GOVERN 6.1", "MANAGE 3.1"],
+    "no-row-cap":                 ["MEASURE 2.7", "MEASURE 2.10"],
+    "whole-documents":            ["MEASURE 2.10"],
+    "plaintext-db-password":      ["MEASURE 2.7", "GOVERN 6.1", "MANAGE 3.1"],
+    "plaintext-token":            ["MEASURE 2.7", "GOVERN 6.1", "MANAGE 3.1"],
+    "plaintext-secrets":          ["MEASURE 2.7", "GOVERN 6.1", "MANAGE 3.1"],
+    "stdio-write-tools":          ["MEASURE 2.7"],
+    "local-tools-open":           ["MEASURE 2.7", "MEASURE 2.8"],
+    "db-no-auth":                 ["MEASURE 2.7", "MEASURE 2.8", "MEASURE 2.10"],
+    "writes-allowed":             ["MEASURE 2.7"],
+    "server-side-js":             ["MEASURE 2.7"],
+    "cross-collection":           ["MEASURE 2.7", "MEASURE 2.10"],
+    "cross-collection-contained": ["MEASURE 2.7", "MEASURE 2.10"],
+    "leaks-in-errors":            ["MEASURE 2.7", "MEASURE 2.10", "GOVERN 6.1", "MANAGE 3.1"]
+  },
+  "not_covered": {
+    "id": "Not covered",
+    "label": "Accuracy, bias and model testing",
+    "subcategories": ["MEASURE 2.3", "MEASURE 2.5", "MEASURE 2.9", "MEASURE 2.11"],
+    "showed": "This tool only looks at what the AI can reach in your data. It does not test how accurate or fair the AI's answers are, or the model itself. Use other methods for those."
+  }
+}
